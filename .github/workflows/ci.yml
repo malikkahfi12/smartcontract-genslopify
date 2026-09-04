@@ -1,0 +1,98 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  FOUNDRY_PROFILE: ci
+
+jobs:
+  # Gates 1-3 and 6 from quickstart.md. Every one is blocking.
+  build-and-test:
+    name: Build, format, test, gas
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: nightly
+
+      # Gate 1: formatting
+      - name: forge fmt --check
+        run: forge fmt --check
+
+      # Gate 2: warnings are errors
+      - name: forge build (warnings are errors)
+        run: forge build --deny warnings --sizes
+
+      # Gate 3: all suites including fuzz and invariant
+      - name: forge lint (src only, deployed artifact must be clean)
+        run: forge lint src/
+
+      - name: forge test
+        run: forge test -vvv
+
+      # Gate 6: no unexplained gas regression
+      - name: forge snapshot --check
+        run: forge snapshot --check
+
+  # Gate 4: coverage threshold. Constitution Principle II requires >=95%
+  # lines AND branches on src/.
+  coverage:
+    name: Coverage >= 95%
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: nightly
+
+      - name: Install lcov
+        run: sudo apt-get update && sudo apt-get install -y lcov
+
+      - name: forge coverage
+        run: forge coverage --report lcov --no-match-coverage "(test|script)"
+
+      - name: Enforce threshold
+        run: |
+          lcov --summary lcov.info 2>&1 | tee summary.txt
+          LINES=$(grep -oP 'lines\.*: \K[0-9.]+' summary.txt)
+          BRANCH=$(grep -oP 'functions\.*: \K[0-9.]+' summary.txt)
+          echo "lines=$LINES% functions=$BRANCH%"
+          awk -v l="$LINES" 'BEGIN{if(l+0 < 95){print "FAIL: line coverage " l "% < 95%"; exit 1}}'
+          awk -v b="$BRANCH" 'BEGIN{if(b+0 < 95){print "FAIL: function coverage " b "% < 95%"; exit 1}}'
+
+  # Gate 5: static analysis
+  static-analysis:
+    name: Slither and solhint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: nightly
+
+      - name: Slither
+        uses: crytic/slither-action@v0.4.0
+        with:
+          fail-on: medium
+          slither-config: slither.config.json
+
+      - name: Solhint
+        run: |
+          npm install -g solhint@5
+          solhint 'src/**/*.sol' --max-warnings 0

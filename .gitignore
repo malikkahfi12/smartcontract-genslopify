@@ -1,0 +1,31 @@
+# Foundry
+out/
+cache/
+# Dry-run output is noise; real broadcast receipts ARE committed (constitution
+# Principle VII requires deployment artifacts on record). Path is
+# broadcast/<script>/<chainid>/dry-run/, so the glob needs ** not *.
+broadcast/**/dry-run/
+docs/book/
+
+# Secrets — constitution: keys are NEVER committed
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+keystore/
+
+# Analysis output
+lcov.info
+coverage/
+slither-report.json
+crytic-export/
+
+# Universal
+.DS_Store
+Thumbs.db
+*.log
+*.tmp
+*.swp
+.vscode/
+.idea/

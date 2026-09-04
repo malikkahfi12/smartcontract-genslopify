@@ -1,0 +1,36 @@
+{
+  "extends": "solhint:recommended",
+  "rules": {
+    "compiler-version": [
+      "error",
+      "0.8.28"
+    ],
+    "func-visibility": [
+      "error",
+      {
+        "ignoreConstructors": true
+      }
+    ],
+    "explicit-types": [
+      "error",
+      "explicit"
+    ],
+    "reason-string": "off",
+    "no-inline-assembly": "error",
+    "avoid-low-level-calls": "off",
+    "avoid-tx-origin": "error",
+    "avoid-call-value": "off",
+    "not-rely-on-time": "off",
+    "check-send-result": "error",
+    "reentrancy": "error",
+    "state-visibility": "error",
+    "max-line-length": [
+      "error",
+      100
+    ],
+    "ordering": "error",
+    "no-empty-blocks": "warn",
+    "one-contract-per-file": "error",
+    "import-path-check": "off"
+  }
+}

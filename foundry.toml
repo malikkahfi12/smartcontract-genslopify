@@ -1,0 +1,94 @@
+# TopUpRouter — Foundry configuration
+# Constitution Principle VII: every setting here is pinned so a deployment is
+# reproducible from a tagged commit. Do not relax any of these casually.
+
+[profile.default]
+src = "src"
+out = "out"
+libs = ["lib"]
+test = "test"
+script = "script"
+
+# Principle I: pinned exactly, never a floating pragma or an "auto" resolution.
+solc_version = "0.8.28"
+
+# Principle VI: set deliberately, NOT left at a toolchain default.
+# VERIFIED 2026-09-04 against Arc testnet (chain 5042002) by eth_call opcode probe:
+#   PUSH0 (0x5f, Shanghai)      -> supported
+#   TSTORE/TLOAD (0x5d/0x5c)    -> supported
+#   MCOPY (0x5e, Cancun)        -> supported
+#   negative control (0x0c)     -> "OpcodeNotFound", so the probe discriminates
+# Arc MAINNET support is NOT established by this. Re-probe before any mainnet build.
+evm_version = "cancun"
+
+optimizer = true
+optimizer_runs = 10_000
+via_ir = false
+
+# Principle IV: warnings are errors. No merge on a warning.
+deny = "warnings"
+
+# Surgical exception, NOT a blanket relaxation. 1699 is the `selfdestruct` deprecation warning.
+# test/mocks/ForceSender.sol must use SELFDESTRUCT: it is the only way to push native funds into
+# a contract that declares no receive/fallback, which is precisely the condition 001 FR-008 and
+# INV-9 require us to test. No src/ contract uses it, and slither/solhint would flag one that did.
+ignored_error_codes = [1699]
+
+bytecode_hash = "none"
+cbor_metadata = false
+
+fs_permissions = [{ access = "read", path = "./out" }]
+
+# Required by halmos (T075): it reads the Solidity AST from build artifacts to perform the
+# symbolic analysis the constitution mandates for accounting-critical code. Extra output only;
+# no effect on the deployed bytecode.
+ast = true
+
+# Principle II: minimum 10,000 fuzz runs on invariant-bearing functions.
+[fuzz]
+runs = 10_000
+max_test_rejects = 500_000
+
+# Principle II: stateful invariant testing is required for a value-moving contract.
+[invariant]
+runs = 256
+depth = 50
+fail_on_revert = false
+call_override = false
+shrink_run_limit = 5_000
+
+# forge lint runs on build and its warnings are denied along with compiler warnings.
+# Scope it to src/: the deployed artifact must be clean. test/ is excluded because the mocks are
+# deliberately hostile — MaliciousTreasury really does send ETH to a user-controlled destination
+# and really does spin to burn gas; those are the behaviours under test, not defects.
+# forge lint's findings are denied alongside compiler warnings, so it is NOT run on build:
+# it would fail on the deliberately hostile test mocks (MaliciousTreasury really does send ETH to
+# a user-controlled destination and really does spin to burn gas — those are the behaviours under
+# test, not defects). CI runs `forge lint src/` explicitly, so the deployed artifact stays strict.
+[lint]
+lint_on_build = false
+
+[fmt]
+line_length = 100
+tab_width = 4
+bracket_spacing = false
+int_types = "long"
+quote_style = "double"
+number_underscore = "thousands"
+multiline_func_header = "attributes_first"
+sort_imports = true
+
+[profile.ci]
+verbosity = 3
+fuzz = { runs = 50_000 }
+invariant = { runs = 1_000, depth = 100 }
+
+[rpc_endpoints]
+arc_testnet = "${ARC_TESTNET_RPC}"
+
+# Arc's explorer (testnet.arcscan.app) is BLOCKSCOUT, not Etherscan. It needs no API key, and
+# verification requires passing `--verifier blockscout` explicitly — without it forge falls back
+# to Sourcify, which does not index Arc and returns 404. This block only supplies the URL for
+# `--chain arc_testnet`; the key is unused and may be empty. See docs/DEPLOYMENT.md.
+[etherscan]
+arc_testnet = { key = "${ARC_EXPLORER_KEY}", url = "https://testnet.arcscan.app/api", chain = 5042002 }
