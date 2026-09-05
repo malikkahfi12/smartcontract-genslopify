@@ -1,15 +1,16 @@
 # TopUpRouter
 
 A single immutable contract that accepts native USDC top-ups on the Arc chain, forwards every
-payment straight to a treasury address, and records who paid and who was credited.
+payment straight to a fixed treasury address, and records who paid and who was credited.
 
-**There is no way to get funds back out. That is the point, not an omission.**
+**There is no way to get funds back out, and no way to change where they go. That is the point,
+not an omission.**
 
 ## What it does
 
-A user sends USDC as transaction value. In the same transaction the full amount is forwarded to
-the treasury and a `ToppedUp` event credits a beneficiary — who may be the payer or anyone else.
-The contract holds no user funds between transactions.
+A user sends native USDC as transaction value. In the same transaction the full amount is
+forwarded to the treasury and a `ToppedUp` event credits a beneficiary — who may be the payer or
+anyone else. The contract holds no user funds between transactions.
 
 Credit is consumed by an off-chain ledger. The on-chain totals (`contributions`, `totalRouted`)
 are a reconciliation aid, not a spendable balance: funds leave immediately and no withdrawal
@@ -17,85 +18,62 @@ exists, so a redeemable on-chain balance could not exist.
 
 ## Governance model
 
-| Control | Who | Delay |
+There isn't one.
+
+| Control | Who | How |
 |---|---|---|
-| Rotate treasury | `admin` | **2 days** |
-| Transfer authority | `admin` | **2 days** |
-| Change pauser | `admin` | **2 days** |
-| Pause / resume top-ups | `pauser` | **immediate** |
-| Move funds | **nobody** | — |
+| Change the treasury | **nobody** | no such function exists |
+| Pause or resume top-ups | **nobody** | no such function exists |
+| Change the minimum | **nobody** | compile-time constant |
+| Upgrade the code | **nobody** | no proxy, no upgrade hook |
+| Move funds out | **nobody** | no withdrawal path of any kind |
 
-Three properties are worth understanding before you rely on this contract:
+The contract stores no privileged address. There is no admin, no pauser, no owner, and no
+timelock — nothing to compromise, nothing to lose, and nothing whose loss could freeze the
+system. Every function behaves identically no matter who calls it.
 
-**The 2-day delay covers every route to the treasury.** Authority transfer is delayed too. If it
-were not, an attacker holding `admin` would transfer authority to themselves and rotate the
-treasury in one transaction, and the delay would be worth nothing. Making themselves admin first
-takes 4 days total — strictly slower than the direct route.
+The entire external surface is two payable functions and four getters. You can read all of it in
+one sitting, which is the property that makes an ungoverned immutable contract defensible.
 
-**The delay cannot be changed by anyone.** `DELAY` is a compile-time constant, not a constructor
-parameter, so every deployment of a given build has the same 2 days. Changing it requires a new
-contract.
+## Denomination — read this before writing any integration
 
-**Single-key governance is one-way.** The contract may be deployed with a single primary key for
-launch practicality. Once authority moves to a contract, it can never return to a plain key.
+**Native USDC on Arc has 6 decimals, not 18.** One whole USDC is `1e6` base units of `msg.value`.
+Arc's own documentation calls this the most common mistake when porting an EVM application, and
+an earlier deployment of this contract was rendered permanently unusable by getting it wrong.
 
-## Accepted terminal risk — read this
+The minimum top-up is `1e6` — exactly 1.000000 USDC — fixed in the code forever.
 
-The design deliberately has **no escape hatch**. Code is immutable, the delay is fixed, authority
-cannot fall back to a single key, and no function moves funds.
+## Accepted terminal risks — read this too
 
-**If multisig quorum is ever lost, the treasury address freezes permanently.** Top-ups keep
-routing to whatever address is set, the system cannot be paused, and no one can change anything.
-The only remedy is deploying a replacement contract and migrating users.
+The design deliberately has **no escape hatch**, and the costs are real:
 
-Each of those choices is individually sound. Together they shift decisive weight onto **signer key
-custody** and **the correctness of the handover address**. Treat both accordingly.
+**A wrong treasury address is permanent.** It cannot be corrected by anyone, at any time. If the
+treasury is a contract that reverts on receipt, every top-up fails forever and the deployment is
+bricked. Validation before deployment is the only defence that exists.
 
-Two smaller consequences of the same posture:
+**There is no incident response.** A defect cannot be patched and top-ups cannot be halted. The
+only available response to anything going wrong is to stop directing contributors to the address
+and deploy a replacement.
 
-- **Funds sent directly to the contract are permanently stranded.** Native funds can be forced in
-  via `SELFDESTRUCT`, which no code can refuse. They credit nobody and cannot be recovered — any
-  recovery path would be a withdrawal path.
-- **Erroneous or duplicate top-ups cannot be reversed on-chain.** Remediation is an off-chain
-  business process against the treasury.
+**ERC-20 tokens sent to this address are lost permanently.** Native USDC is the only accepted
+payment. There is no token-rescue function, because a rescue would need a privileged caller and a
+non-treasury outflow — the two things this contract exists to forbid. Send only native USDC.
 
-## Chain specifics
-
-Arc testnet, chain ID `5042002`. The native gas token is **USDC with 18 decimals**, not ETH.
-Because gas and payment are the same asset, a user cannot top up their entire balance — the
-attempt fails cleanly rather than being compensated for.
-
-Arc testnet supports **Cancun**, confirmed by opcode probe (`PUSH0`, `TSTORE`/`TLOAD`, `MCOPY` all
-execute; an undefined opcode returns `OpcodeNotFound`). `evm_version` is set deliberately in
-`foundry.toml`. **Mainnet EVM support is not established — re-probe before any mainnet build.**
-
-## Build and test
+## Reading the contract state
 
 ```bash
-forge build
-forge test                    # 138 tests
-forge coverage                # 100% lines / statements / branches / functions on src/
-forge lint src/ script/       # zero warnings
-slither . --config-file slither.config.json   # zero results
-npx solhint 'src/**/*.sol'    # clean
+cast call $ROUTER "treasury()(address)"            --rpc-url $ARC_TESTNET_RPC
+cast call $ROUTER "MIN_TOPUP()(uint256)"           --rpc-url $ARC_TESTNET_RPC
+cast call $ROUTER "totalRouted()(uint256)"         --rpc-url $ARC_TESTNET_RPC
+cast call $ROUTER "contributions(address)(uint256)" $ACCOUNT --rpc-url $ARC_TESTNET_RPC
 ```
 
-To deploy, see **`docs/DEPLOYMENT.md`** — signing uses an encrypted keystore, not a key in `.env`.
+## Development
 
-**Deployed on Arc testnet**:
-[`0xd1040c76f7834863c0e971446016e3ad219e5cb0`](https://testnet.arcscan.app/address/0xd1040c76f7834863c0e971446016e3ad219e5cb0)
-(verified). An earlier deployment at `0x9B07…0B0C` is superseded. Full record in
-`docs/deployments/arc-testnet.md`. Currently under **single-key governance** —
-`multisigEstablished()` is `false`.
+```bash
+forge build && forge test        # 82 tests: unit, attack, invariant, symbolic, fork
+forge coverage --report summary  # 100% lines/branches on src/
+```
 
-The suite includes adversarial tests (`test/attack/`) that each attempt an exploit and assert it
-fails, two stateful invariant campaigns, and a fork test that exercises governance through a real
-Safe deployed on Arc testnet.
-
-## Scope
-
-Currently scoped to **Arc testnet**. Deferred, not waived: an independent external audit, and a
-live rehearsal of the multisig handover. Both re-activate if a production deployment is proposed.
-
-See `docs/OPERATIONS.md` for runbooks, `specs/` for the specifications this was built from, and
-`.specify/memory/constitution.md` for the engineering principles it is held to.
+Governance rules and quality gates: `.specify/memory/constitution.md`.
+Deployment walkthrough: `docs/DEPLOYMENT.md`.

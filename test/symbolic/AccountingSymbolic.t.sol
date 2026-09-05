@@ -31,12 +31,10 @@ contract AccountingSymbolicTest is Test {
     TopUpRouter internal router;
 
     address internal treasury = address(0xBEEF);
-    address internal admin = address(0xA11CE);
-    address internal pauser = address(0xB0B);
     uint256 internal constant MIN_TOPUP = 1;
 
     function setUp() public {
-        router = new TopUpRouter(treasury, admin, pauser, MIN_TOPUP);
+        router = new TopUpRouter(treasury);
     }
 
     /// @notice For ANY single top-up, the credited amount equals what the treasury received and

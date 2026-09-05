@@ -15,13 +15,11 @@ contract AccountingInvariantTest is Test {
     AccountingHandler internal handler;
 
     address internal treasury = makeAddr("invariantTreasury");
-    address internal admin = makeAddr("invariantAdmin");
-    address internal pauser = makeAddr("invariantPauser");
 
-    uint256 internal constant MIN_TOPUP = 1e18;
+    uint256 internal constant MIN_TOPUP = 1e6;
 
     function setUp() public {
-        router = new TopUpRouter(treasury, admin, pauser, MIN_TOPUP);
+        router = new TopUpRouter(treasury);
         handler = new AccountingHandler(router, treasury);
 
         // Only the handler may drive state, so the fuzzer cannot call the router directly with

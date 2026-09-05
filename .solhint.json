@@ -20,7 +20,6 @@
     "avoid-low-level-calls": "off",
     "avoid-tx-origin": "error",
     "avoid-call-value": "off",
-    "not-rely-on-time": "off",
     "check-send-result": "error",
     "reentrancy": "error",
     "state-visibility": "error",

@@ -1,156 +1,60 @@
 # Operations runbook — TopUpRouter
 
-Everything here assumes the contract is **immutable**. There is no patch. Pausing and redeploying
-are the only responses to a defect.
+**There are no operations.**
 
-## Before you start
+That is not a placeholder. The deployed contract has no administrator, no pauser, no owner, and
+no timelock. No key holder can change the treasury, halt top-ups, adjust the minimum, upgrade the
+code, or move funds. There is no privileged call for this runbook to document, and no operational
+key that needs to be funded, rotated, or guarded.
 
-Signing uses an encrypted keystore, not a key in `.env`. See `docs/DEPLOYMENT.md` steps 1-2 if you
-have not set one up.
+Everything that used to live here — proposing a treasury rotation, waiting out the 2-day delay,
+handing authority to a multisig, pausing during an incident — describes a contract that no longer
+exists. See git history if you need it for the earlier deployment.
 
-**Each command below uses the key for the role it needs. They are not interchangeable — sending an
-admin-only call from the deployer key reverts `NotAdmin`.**
+## What you can still do
 
-| Placeholder | Role | Used for |
-|---|---|---|
-| `$ADMIN_ACCOUNT` | admin | propose / cancel any governance change |
-| `$PAUSER_ACCOUNT` | pauser | `pause()` / `unpause()` only |
-| `$ANY_FUNDED_ACCOUNT` | none | `apply*()` — permissionless, any funded key works |
+Read state. That is the whole list.
 
 ```bash
 source .env
-cast wallet list                                    # accounts available to sign
-cast call $ROUTER "admin()(address)"  --rpc-url $ARC # must match $ADMIN_ACCOUNT's address
-cast call $ROUTER "pauser()(address)" --rpc-url $ARC # must match $PAUSER_ACCOUNT's address
+cast call $ROUTER "treasury()(address)"             --rpc-url $ARC_TESTNET_RPC
+cast call $ROUTER "MIN_TOPUP()(uint256)"            --rpc-url $ARC_TESTNET_RPC
+cast call $ROUTER "totalRouted()(uint256)"          --rpc-url $ARC_TESTNET_RPC
+cast call $ROUTER "contributions(address)(uint256)" $ACCOUNT --rpc-url $ARC_TESTNET_RPC
 ```
 
-**Every signing key needs USDC.** Gas on Arc is paid in USDC, so an unfunded admin cannot govern
-and an unfunded pauser cannot stop an incident. Check before you need them:
+Amounts are in base units of native USDC, which has **6 decimals** on Arc. Divide by `1_000_000`
+for whole USDC. Do not divide by `1e18`.
 
-```bash
-cast balance $ADMIN_ADDRESS  --rpc-url $ARC
-cast balance $PAUSER_ADDRESS --rpc-url $ARC
-```
+## Incident response
 
-Never pass a literal private key outside local `anvil` (constitution, Secrets).
+There is one procedure, and it is the same regardless of what went wrong:
 
-`applyTreasury()`, `applyAdmin()` and `applyPauser()` are **permissionless** — once a proposal
-matures, anyone may execute it. This is deliberate: authorization happened at proposal time and
-the delay is the protection. It means you do not need signer availability to complete a change.
+1. **Stop directing contributors to the address.** Update the application, the docs, and any
+   published reference. This is the only lever that exists.
+2. **Deploy a replacement** per `docs/DEPLOYMENT.md`, at a new address.
+3. **Migrate** contributors to the new address.
 
----
+You cannot pause the contract while you do this. Top-ups already sent are irreversible and cannot
+be recovered. Funds continue routing to the treasury for as long as anyone keeps calling it, which
+may be indefinitely — an address on a public chain does not stop working because you stopped
+advertising it.
 
-## Runbook 1 — Rotate the treasury
+This is a deliberate trade, accepted when the contract was specified: no privileged function means
+no privileged function to be compromised, and the surface is small enough to review exhaustively
+instead. It is worth being clear-eyed that the cost is a real one, paid at the worst possible
+moment.
 
-**Takes 2 days. Plan for it.**
+## Things people will ask for that cannot be done
 
-```bash
-# Day 0 — propose (admin only)
-cast send $ROUTER "proposeTreasury(address)" $NEW_TREASURY --rpc-url $ARC --account $ADMIN_ACCOUNT
-
-# Confirm it is pending and note the effective time
-cast call $ROUTER "pendingTreasury()(address,uint64)" --rpc-url $ARC
-
-# Day 2 — apply (anyone may call)
-cast send $ROUTER "applyTreasury()" --rpc-url $ARC --account $ANY_FUNDED_ACCOUNT
-cast call $ROUTER "treasury()(address)" --rpc-url $ARC   # verify
-```
-
-**If the proposal is wrong**, cancel it before it matures:
-
-```bash
-cast send $ROUTER "cancelTreasury()" --rpc-url $ARC --account $ADMIN_ACCOUNT
-```
-
-A cancelled proposal can never be applied. Re-proposing restarts the full 2 days — it never
-inherits elapsed time.
-
----
-
-## Runbook 2 — Hand over to a multisig
-
-**This is one-way. Once complete, authority can never return to a plain key.**
-
-```bash
-# Day 0
-ROUTER_ADDRESS=$ROUTER MULTISIG_ADDRESS=$SAFE \
-  forge script script/ProposeHandover.s.sol --rpc-url $ARC --broadcast \
-    --account $ADMIN_ACCOUNT --sender $ADMIN_ADDRESS
-
-# Day 2
-cast send $ROUTER "applyAdmin()" --rpc-url $ARC --account $ANY_FUNDED_ACCOUNT
-cast call $ROUTER "multisigEstablished()(bool)" --rpc-url $ARC   # must be true
-```
-
-**Check the target address carefully.** It is recoverable only inside the 2-day window
-(`cancelAdmin()`). After that, an incorrect authority address is permanently in control.
-
-The contract verifies the target is a contract, not that it is a multisig. `code.length > 0` would
-also pass for a contract forwarding to a single key. Verify the Safe's owners and threshold
-yourself before proposing.
-
----
-
-## Runbook 3 — Incident response
-
-**Pausing is the only fast lever.** It is immediate and sits on `pauser`, deliberately separate
-from and easier to satisfy than the treasury quorum.
-
-```bash
-# 1. STOP THE BLEEDING — immediate, no delay, pauser only
-cast send $ROUTER "pause()" --rpc-url $ARC --account $PAUSER_ACCOUNT
-
-# 2. Assess. Governance still works while paused, by design.
-cast call $ROUTER "treasury()(address)" --rpc-url $ARC
-cast call $ROUTER "pendingTreasury()(address,uint64)" --rpc-url $ARC
-cast call $ROUTER "admin()(address)" --rpc-url $ARC
-
-# 3. If the treasury is compromised, start a rotation — still 2 days
-cast send $ROUTER "proposeTreasury(address)" $SAFE_TREASURY --rpc-url $ARC --account $ADMIN_ACCOUNT
-
-# 4. Resume once safe
-cast send $ROUTER "unpause()" --rpc-url $ARC --account $PAUSER_ACCOUNT
-```
-
-**What pausing does not do:** it does not stop a pending governance change from maturing, and it
-does not recover funds already sent. If an attacker holds `admin` and you do not, you can pause
-but you **cannot cancel** their pending rotation. Pausing stops money flowing; it does not stop
-the rotation.
-
----
-
-## Monitoring (required, not optional)
-
-The 2-day window only protects you if someone is watching it. Alert on:
-
-| Signal | Why |
+| Request | Answer |
 |---|---|
-| `pendingTreasury()` target becomes non-zero | A rotation is in progress — you have 2 days |
-| `pendingAdmin()` target becomes non-zero | An authority transfer is in progress |
-| `ChangeProposed` event | Same signals, push rather than poll |
-| `multisigEstablished()` flips to true | Handover completed |
-| `Paused` / `Unpaused` events | Someone used the emergency lever |
+| "Point the treasury at a new Safe" | Not possible. Redeploy. |
+| "Pause while we investigate" | Not possible. No pause exists. |
+| "Someone sent USDT/ETH-bridged tokens, get them back" | Not possible. Permanently stranded. |
+| "Lower the minimum, it's too high" | Not possible. Compile-time constant. Redeploy. |
+| "Someone overpaid, refund them" | Not possible. Funds are at the treasury; refund from there. |
+| "Upgrade to fix a bug" | Not possible. No proxy. Redeploy. |
 
-An unexpected `ChangeProposed` is the single highest-priority alert this system produces. It means
-someone is 2 days away from redirecting all incoming funds.
-
----
-
-## Reconciliation
-
-`ToppedUp` carries `newTotal` — the beneficiary's post-state total, not just the delta. An indexer
-should assert `newTotal == previousTotal + amount` for each beneficiary. A mismatch means a missed
-or duplicated event, caught immediately rather than drifting silently.
-
-Reconciliation identity: the sum of all `contributions` equals `totalRouted` equals the total this
-contract has sent to treasuries. This holds regardless of funds forced into the contract, because
-the contract never reads its own balance.
-
----
-
-## Open governance obligation
-
-If deployed with a single primary key, that window is the system's weakest state and nothing
-on-chain forces it to close. Track the handover to completion and record how long the window
-stayed open (spec 002 SC-009). It is a documented, time-boxed exception to constitution
-Principle V — undocumented exceptions are defects.
+For the last row in particular: a redeploy is a new address with a new contribution history. The
+off-chain ledger must be told about both.
