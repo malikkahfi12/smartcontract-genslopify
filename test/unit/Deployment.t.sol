@@ -3,70 +3,59 @@ pragma solidity 0.8.28;
 
 import {TopUpRouter} from "../../src/TopUpRouter.sol";
 import {BaseTest} from "../BaseTest.sol";
-import {MockMultisig} from "../mocks/MockMultisig.sol";
 
 /// @title DeploymentTest
-/// @notice Phase 2 checkpoint: the skeleton deploys and every getter reports constructor state.
-/// @dev Behavioural tests for top-up and governance arrive in Phase 3+ alongside their features.
+/// @notice The contract deploys from one argument and every getter reports the expected state.
+/// @dev 003 FR-003, FR-006, FR-014b. What this suite does NOT assert is as important as what it
+///      does: there is no role to wire, no minimum to configure, and no pending change to be
+///      empty, because none of those exist. Their absence is proved in Immutability.t.sol.
 contract DeploymentTest is BaseTest {
-    function test_ConstructorWiresGovernanceState() public view {
-        assertEq(router.treasury(), treasury, "treasury");
-        assertEq(router.admin(), admin, "admin");
-        assertEq(router.pauser(), pauser, "pauser");
-        assertEq(router.MIN_TOPUP(), MIN_TOPUP, "minTopUp");
+    function test_ConstructorSetsTreasury() public view {
+        assertEq(router.treasury(), treasury, "treasury is the sole constructor argument");
     }
 
-    function test_DelayIsExactlyTwoDays() public view {
-        assertEq(router.DELAY(), 2 days, "DELAY must be 2 days");
-        assertEq(router.DELAY(), 172_800, "DELAY in seconds");
+    /// @dev 003 FR-006: the minimum is a compile-time constant, identical in every build.
+    function test_MinimumIsOneWholeUsdcAtSixDecimals() public view {
+        assertEq(router.MIN_TOPUP(), MIN_TOPUP, "minimum matches the harness constant");
+        assertEq(router.MIN_TOPUP(), 1e6, "one whole USDC at Arc's 6 decimals");
+        assertEq(router.MIN_TOPUP(), 1_000_000, "stated in base units, unambiguously");
+    }
+
+    /// @dev A deployment at any other address reports the same constant: it is not per-deployment.
+    function test_MinimumIsIdenticalAcrossDeployments() public {
+        TopUpRouter other = new TopUpRouter(makeAddr("otherTreasury"));
+        assertEq(other.MIN_TOPUP(), router.MIN_TOPUP(), "constant, not a deployment parameter");
     }
 
     function test_AccountingStartsEmpty() public view {
         assertEq(router.totalRouted(), 0, "totalRouted");
         assertEq(router.contributions(beneficiary), 0, "never-credited account reads zero");
-        assertFalse(router.paused(), "starts unpaused");
-    }
-
-    function test_NoPendingChangesAtDeployment() public view {
-        (address t, uint64 e) = router.pendingTreasury();
-        assertEq(t, address(0), "no pending treasury");
-        assertEq(e, 0, "no eta");
-        (address a,) = router.pendingAdmin();
-        assertEq(a, address(0), "no pending admin");
-        (address p,) = router.pendingPauser();
-        assertEq(p, address(0), "no pending pauser");
-    }
-
-    function test_EoaAdminDoesNotLatchMultisig() public view {
-        assertFalse(router.multisigEstablished(), "EOA admin must not latch the one-way flag");
-    }
-
-    function test_ContractAdminLatchesMultisigAtDeployment() public {
-        MockMultisig ms = deployMockMultisig();
-        TopUpRouter r = new TopUpRouter(treasury, address(ms), pauser, MIN_TOPUP);
-        assertTrue(r.multisigEstablished(), "contract admin must latch immediately");
     }
 
     function test_RevertWhen_ConstructorGivenZeroAddress() public {
         vm.expectRevert(TopUpRouter.ZeroAddress.selector);
-        new TopUpRouter(address(0), admin, pauser, MIN_TOPUP);
-
-        vm.expectRevert(TopUpRouter.ZeroAddress.selector);
-        new TopUpRouter(treasury, address(0), pauser, MIN_TOPUP);
-
-        vm.expectRevert(TopUpRouter.ZeroAddress.selector);
-        new TopUpRouter(treasury, admin, address(0), MIN_TOPUP);
+        new TopUpRouter(address(0));
     }
 
-    function test_RevertWhen_ConstructorGivenZeroMinimum() public {
-        vm.expectRevert(TopUpRouter.ZeroAmount.selector);
-        new TopUpRouter(treasury, admin, pauser, 0);
+    /// @dev A router pointed at itself would strand every top-up it ever accepted.
+    function test_RevertWhen_ConstructorGivenSelfAddress() public {
+        // The deployed address is deterministic from deployer + nonce, so precompute it and hand
+        // the constructor its own address.
+        address predicted = vm.computeCreateAddress(address(this), vm.getNonce(address(this)));
+        vm.expectRevert(TopUpRouter.SelfAddress.selector);
+        new TopUpRouter(predicted);
     }
 
-    /// @dev 001 FR-028: no receive/fallback exists, so a bare value transfer must revert.
+    /// @dev A contract treasury is legitimate — a Safe is the intended production destination.
+    function test_ContractTreasuryIsAccepted() public {
+        TopUpRouter r = new TopUpRouter(address(this));
+        assertEq(r.treasury(), address(this), "a contract treasury is valid");
+    }
+
+    /// @dev 003 FR-015: no receive/fallback exists, so a bare value transfer must revert.
     function test_RevertWhen_BareValueTransferSent() public {
         vm.prank(payer);
-        (bool ok,) = address(router).call{value: 1 ether}("");
+        (bool ok,) = address(router).call{value: 1e6}("");
         assertFalse(ok, "bare transfer must be rejected: no receive/fallback");
     }
 }

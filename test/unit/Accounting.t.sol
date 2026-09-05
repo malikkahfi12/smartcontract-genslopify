@@ -25,9 +25,9 @@ contract AccountingTest is BaseTest {
         address b = makeAddr("accB");
 
         vm.startPrank(payer);
-        router.topUp{value: 3e18}(a);
-        router.topUp{value: 5e18}(b);
-        router.topUp{value: 2e18}(a);
+        router.topUp{value: 3e6}(a);
+        router.topUp{value: 5e6}(b);
+        router.topUp{value: 2e6}(a);
         vm.stopPrank();
 
         assertEq(
@@ -41,8 +41,8 @@ contract AccountingTest is BaseTest {
         uint256 before = treasury.balance;
 
         vm.startPrank(payer);
-        router.topUp{value: 4e18}(beneficiary);
-        router.topUp{value: 6e18}(beneficiary);
+        router.topUp{value: 4e6}(beneficiary);
+        router.topUp{value: 6e6}(beneficiary);
         vm.stopPrank();
 
         assertEq(router.totalRouted(), treasury.balance - before, "INV-3: routed == received");
@@ -51,7 +51,7 @@ contract AccountingTest is BaseTest {
     /// @dev 001 FR-014: no operation may reduce a total.
     function test_TotalsAreMonotonicAcrossFailedAttempts() public {
         vm.prank(payer);
-        router.topUp{value: 10e18}(beneficiary);
+        router.topUp{value: 10e6}(beneficiary);
         uint256 snapshot = router.totalRouted();
 
         // A failed top-up must not reduce anything.
@@ -77,13 +77,13 @@ contract AccountingTest is BaseTest {
         vm.recordLogs();
 
         vm.startPrank(payer);
-        router.topUp{value: 3e18}(a);
-        router.topUp{value: 7e18}(b);
-        router.topUp{value: 5e18}(a);
+        router.topUp{value: 3e6}(a);
+        router.topUp{value: 7e6}(b);
+        router.topUp{value: 5e6}(a);
         vm.stopPrank();
 
         vm.prank(stranger);
-        router.topUp{value: 11e18}(b);
+        router.topUp{value: 11e6}(b);
 
         // Rebuild from logs alone, exactly as an indexer would.
         Vm.Log[] memory logs = vm.getRecordedLogs();
@@ -116,9 +116,9 @@ contract AccountingTest is BaseTest {
         vm.recordLogs();
 
         vm.startPrank(payer);
-        router.topUp{value: 2e18}(beneficiary);
-        router.topUp{value: 3e18}(beneficiary);
-        router.topUp{value: 4e18}(beneficiary);
+        router.topUp{value: 2e6}(beneficiary);
+        router.topUp{value: 3e6}(beneficiary);
+        router.topUp{value: 4e6}(beneficiary);
         vm.stopPrank();
 
         Vm.Log[] memory logs = vm.getRecordedLogs();
@@ -144,9 +144,9 @@ contract AccountingTest is BaseTest {
         vm.recordLogs();
 
         vm.startPrank(payer);
-        router.topUp{value: 2e18}(beneficiary);
-        router.topUp{value: 3e18}(beneficiary);
-        router.topUp{value: 4e18}(beneficiary);
+        router.topUp{value: 2e6}(beneficiary);
+        router.topUp{value: 3e6}(beneficiary);
+        router.topUp{value: 4e6}(beneficiary);
         vm.stopPrank();
 
         Vm.Log[] memory logs = vm.getRecordedLogs();
@@ -171,7 +171,7 @@ contract AccountingTest is BaseTest {
     function test_EventCarriesReceivingTreasuryForReconciliation() public {
         vm.recordLogs();
         vm.prank(payer);
-        router.topUp{value: 5e18}(beneficiary);
+        router.topUp{value: 5e6}(beneficiary);
 
         Vm.Log[] memory logs = vm.getRecordedLogs();
         (, address recorded,) = abi.decode(logs[0].data, (uint256, address, uint256));
@@ -179,9 +179,9 @@ contract AccountingTest is BaseTest {
     }
 
     function testFuzz_LedgerRebuildAlwaysMatches(uint256 a1, uint256 a2, uint256 a3) public {
-        a1 = bound(a1, MIN_TOPUP, 50e18);
-        a2 = bound(a2, MIN_TOPUP, 50e18);
-        a3 = bound(a3, MIN_TOPUP, 50e18);
+        a1 = bound(a1, MIN_TOPUP, 50e6);
+        a2 = bound(a2, MIN_TOPUP, 50e6);
+        a3 = bound(a3, MIN_TOPUP, 50e6);
 
         vm.recordLogs();
         vm.startPrank(payer);

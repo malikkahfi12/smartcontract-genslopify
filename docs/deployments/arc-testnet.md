@@ -151,3 +151,41 @@ system's weakest state — that key can redirect every future top-up after a 2-d
 window is Runbook 2 in `docs/OPERATIONS.md` and itself takes 2 days.
 
 Record the window duration when it closes (spec 002 SC-009, task T088).
+
+---
+
+## ERRATUM — 2026-09-05: this deployment is NON-FUNCTIONAL
+
+**Do not use this router. Do not advertise its address. Do not send it funds.**
+
+The `MIN_TOPUP` recorded above as `1000000000000000000` and annotated "1 USDC, 18 decimals" is
+wrong, because the annotation is wrong. **Native USDC on Arc has 6 decimals, not 18.** One whole
+USDC is `1e6` base units.
+
+At the correct scale this deployment's minimum is `1e18` base units = **1,000,000,000,000 USDC**
+— one trillion. No reachable top-up can clear it. This contract has never been able to accept a
+payment and never will: `MIN_TOPUP` is `immutable`, so there is no fix short of redeployment.
+
+**Source of the error**: constitution v1.0.0, Principle VI, stated "Native gas token is USDC with
+18 decimals". That claim was factually wrong about Arc. It was corrected in constitution v1.1.0
+(2026-09-05) against Arc's documentation, which states USDC is the native gas token with 6
+decimals — "not 18 like most EVM chains" — and calls this the single most common mistake when
+porting an EVM application to Arc.
+
+**Why the test suite did not catch it**: every test, including the fork test that ran against the
+live chain, used `1e18` for both the minimum and the top-up amounts. Arithmetic that is internally
+consistent at the wrong scale satisfies every assertion you can write about it. The replacement's
+fork test now derives an amount from a faucet-funded balance so the chain itself supplies a number
+the test did not choose.
+
+**This record is preserved unedited above.** It is what was deployed and what was believed at the
+time, and rewriting it would erase the evidence of how the error propagated.
+
+**Replacement**: spec `003-simplify-immutable-router`, recorded in `arc-testnet-v2.md` once
+deployed. The replacement also removes all governance — no admin, no pauser, no timelock — so the
+"Outstanding" note above about single-key governance is moot for it.
+
+**Optional cleanup**: this router still has a working `pauser`, so it can be paused to make the
+dead address fail loudly rather than silently accept calls that always revert. That is an
+operational judgement call for the maintainers. It is also the last time the option will exist —
+the replacement can never be paused.

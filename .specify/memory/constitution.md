@@ -19,6 +19,26 @@ Added sections:
 
 Removed sections: none
 
+AMENDMENT 2026-09-05 -> 1.1.0 (MINOR: existing guidance materially corrected)
+Principle VI, native token decimals: 18 -> 6.
+Rationale: the ratified 1.0.0 text asserted "Native gas token is USDC with 18 decimals". That
+was factually wrong about Arc. Arc's documentation states USDC is the native gas token with 6
+decimals, "not 18 like most EVM chains", and calls this the single most common porting mistake.
+Verified 2026-09-05 against https://docs.getblock.io/api-reference/arc, which states the
+6-decimal native denomination alongside the matching testnet chain ID 5042002.
+Discovered while planning spec 003, whose FR-010 required 6 decimals and thereby contradicted
+the constitution; the constitution was wrong, not the spec.
+
+Migration impact (ACTION REQUIRED, tracked in specs/003-simplify-immutable-router/):
+- The DEPLOYED 002 router on Arc testnet carries MIN_TOPUP = 1e18 base units. Under the correct
+  6-decimal scale that is 1,000,000,000,000 USDC, so NO top-up it can ever accept is reachable.
+  That deployment is non-functional and MUST NOT be advertised or handed value. MIN_TOPUP is
+  immutable, so there is no fix short of the 003 redeployment.
+- docs/deployments/arc-testnet.md annotates "1 USDC, 18 decimals" and is now known to be wrong.
+  It is a historical record: correct it with a dated erratum, do not rewrite it.
+- test/fork/ArcTestnet.t.sol uses 1e18 literals as whole USDC and MUST be rescaled to 1e6.
+- No src/ contract performs decimal conversion, so no conversion constant needs changing.
+
 Deferred items / TODOs:
 - TODO(ARC_MAINNET_PARAMS): Arc mainnet chain ID, RPC, and explorer are not yet
   published in the referenced docs; only Arc Testnet (chain ID 5042002) is fixed
@@ -125,10 +145,21 @@ The deployment target is the Arc chain, whose properties MUST be respected in co
 
 - **Arc Testnet**: chain ID `5042002`, RPC `https://rpc.testnet.arc.io`, explorer
   `https://testnet.arcscan.app`, faucet `https://faucet.circle.com`.
-- **Native gas token is USDC with 18 decimals**, not ETH. Any code, script, or UI assumption
-  that the native token is ETH, or that gas is denominated in a valueless token, is a defect.
-  Code that mixes native-token amounts with 6-decimal bridged USDC amounts MUST convert
-  explicitly through a named constant, and the conversion MUST have a dedicated test.
+- **Native gas token is USDC with 6 decimals**, not ETH and NOT the 18 decimals every other EVM
+  chain uses for its native currency. One whole USDC is `1e6` base units of `msg.value`, not
+  `1e18`. Any code, script, test, or UI assumption that the native token is ETH, that gas is
+  denominated in a valueless token, or that native amounts scale by `1e18` is a defect.
+  Source: Arc documentation, which names this "the single most common integration mistake when
+  porting an existing EVM dApp to Arc" (verified 2026-09-05 against
+  `https://docs.getblock.io/api-reference/arc`, which states the 6-decimal native denomination
+  alongside the matching testnet chain ID `5042002`).
+
+  Because native USDC and bridged USDC therefore share the same 6-decimal scale, no conversion
+  constant is required between them; any code that introduces a `1e12` scaling factor between
+  native and bridged amounts is a defect, not a safeguard.
+
+  Literals in Solidity, scripts, and tests MUST use the `1e6` scale for whole USDC. A bare `1e18`
+  appearing in a native-amount position is a defect on sight and MUST be caught in review.
 - Contracts MUST NOT hardcode chain IDs, RPC URLs, or addresses in `src/`; these belong in
   deployment configuration and MUST be validated at deploy time against the expected network.
 - Signature-verifying contracts MUST bind the Arc chain ID into the EIP-712 domain separator and
@@ -234,4 +265,4 @@ writing or removed — "it was faster" is not a justification.
 **Runtime guidance**: Agent- and contributor-facing operational guidance lives in `CLAUDE.md` at
 the repository root; it MUST remain consistent with this constitution, which prevails on conflict.
 
-**Version**: 1.0.0 | **Ratified**: 2026-09-03 | **Last Amended**: 2026-09-03
+**Version**: 1.1.0 | **Ratified**: 2026-09-03 | **Last Amended**: 2026-09-05

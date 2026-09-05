@@ -1,168 +1,108 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.28;
 
-import {TopUpRouter} from "../../src/TopUpRouter.sol";
 import {BaseTest} from "../BaseTest.sol";
 
 /// @title AccessControlAttackTest
-/// @notice 002 FR-002/FR-026: every governance function rejects every unauthorized caller.
-/// @dev Extended in Phase 7 (T071) with the authority-transfer and pause functions.
+/// @notice The adversarial suite for a contract with no access control to attack.
+///
+/// @dev 003 FR-014, SC-004a. Constitution Principle II requires access-control bypass tests:
+///      "every privileged function called by an unauthorized address". There are no privileged
+///      functions, so the requirement inverts. Instead of proving that outsiders are kept out,
+///      this suite proves there is no inside — that no address is distinguishable from any other.
+///
+///      That is the stronger property, and it is worth testing rather than assuming. A privilege
+///      can be reintroduced accidentally: an `onlyOwner` added for convenience, an inherited
+///      OpenZeppelin module dragging in `owner()`, a constructor quietly stashing `msg.sender`.
+///      Each of those would break SC-004a while every other test in the suite kept passing.
 contract AccessControlAttackTest is BaseTest {
-    address internal target = makeAddr("attackerTarget");
+    /// @dev The deployer is the likeliest accidental privilege holder — it is the one address the
+    ///      constructor sees. It must be as ordinary as anyone else.
+    function test_DeployerHasNoStandingPrivilege() public {
+        // `address(this)` deployed the router in setUp().
+        vm.deal(address(this), 10e6);
+        uint256 before = treasury.balance;
 
-    /// @dev Every actor that must NOT be able to govern. `pauser` is included deliberately:
-    ///      002 FR-026 requires pause authority to grant nothing else.
-    function _unauthorizedActors() internal view returns (address[4] memory) {
-        return [attacker, stranger, pauser, beneficiary];
+        router.topUp{value: 2e6}(beneficiary);
+
+        assertEq(treasury.balance - before, 2e6, "deployer's top-up behaves like anyone else's");
+        assertEq(router.contributions(beneficiary), 2e6, "credited on the same terms");
     }
 
-    function test_AttackFails_ProposeTreasuryRejectsAllUnauthorized() public {
-        address[4] memory actors = _unauthorizedActors();
-        for (uint256 i = 0; i < actors.length; i++) {
-            vm.prank(actors[i]);
-            vm.expectRevert(TopUpRouter.NotAdmin.selector);
-            router.proposeTreasury(target);
-        }
-        (address pending,) = router.pendingTreasury();
-        assertEq(pending, address(0), "no proposal was created by any unauthorized actor");
-    }
-
-    function test_AttackFails_CancelTreasuryRejectsAllUnauthorized() public {
-        vm.prank(admin);
-        router.proposeTreasury(target);
-
-        address[4] memory actors = _unauthorizedActors();
-        for (uint256 i = 0; i < actors.length; i++) {
-            vm.prank(actors[i]);
-            vm.expectRevert(TopUpRouter.NotAdmin.selector);
-            router.cancelTreasury();
-        }
-        (address pending,) = router.pendingTreasury();
-        assertEq(pending, target, "the pending change survived every cancel attempt");
-    }
-
-    /// @dev 002 FR-026: the pauser may not use its role to reach the treasury.
-    function test_AttackFails_PauserCannotTouchTreasury() public {
-        vm.prank(pauser);
-        vm.expectRevert(TopUpRouter.NotAdmin.selector);
-        router.proposeTreasury(target);
-
-        vm.prank(admin);
-        router.proposeTreasury(target);
-
-        vm.prank(pauser);
-        vm.expectRevert(TopUpRouter.NotAdmin.selector);
-        router.cancelTreasury();
-    }
-
-    /// @dev The treasury itself has no special power.
-    function test_AttackFails_TreasuryCannotGovern() public {
+    /// @dev The treasury is named in the contract, which makes it the second-likeliest accidental
+    ///      privilege holder. Being the destination confers nothing.
+    function test_TreasuryHasNoStandingPrivilege() public {
+        vm.deal(treasury, 10e6);
         vm.prank(treasury);
-        vm.expectRevert(TopUpRouter.NotAdmin.selector);
-        router.proposeTreasury(target);
+        router.topUp{value: 2e6}(beneficiary);
+
+        assertEq(router.contributions(beneficiary), 2e6, "treasury is just another caller");
     }
 
-    /// @notice No governance path leads to funds (002 FR-031 / INV-8).
-    function test_AttackFails_NoGovernancePathExtractsFunds() public {
-        forceFundsInto(address(router), 100e18);
+    /// @dev SC-004a stated directly: the full surface behaves identically for any two callers.
+    ///      Two arbitrary addresses, same inputs, same observable outcome.
+    function testFuzz_EveryCallerIsEquivalent(address callerA, address callerB) public {
+        vm.assume(callerA != address(0) && callerB != address(0));
+        vm.assume(callerA != treasury && callerB != treasury);
+        vm.assume(callerA != address(router) && callerB != address(router));
+        vm.assume(callerA.code.length == 0 && callerB.code.length == 0);
 
-        vm.startPrank(admin);
-        router.proposeTreasury(attacker);
-        vm.stopPrank();
-        warpPastDelay();
-        router.applyTreasury();
+        address benA = makeAddr("benA");
+        address benB = makeAddr("benB");
 
-        // Admin rotated the treasury to themselves. Even so, funds already stranded in the
-        // router stay stranded: rotation only affects FUTURE top-ups.
-        assertEq(address(router).balance, 100e18, "stranded funds remain unreachable");
-        assertEq(attacker.balance, STARTING_BALANCE, "no funds extracted by governance");
+        vm.deal(callerA, 10e6);
+        vm.prank(callerA);
+        router.topUp{value: 3e6}(benA);
+
+        vm.deal(callerB, 10e6);
+        vm.prank(callerB);
+        router.topUp{value: 3e6}(benB);
+
+        assertEq(
+            router.contributions(benA),
+            router.contributions(benB),
+            "identical inputs from different callers produce identical results"
+        );
     }
 
-    function testFuzz_AttackFails_AnyNonAdminIsRejected(address caller) public {
-        vm.assume(caller != admin);
+    /// @dev The same equivalence on the failure side: a rejected top-up is rejected for everyone,
+    ///      for the same reason. No caller gets a waiver on the minimum.
+    function testFuzz_MinimumAppliesToEveryCallerAlike(address caller) public {
+        vm.assume(caller != address(0) && caller.code.length == 0);
+        vm.assume(caller != address(router));
+
+        vm.deal(caller, 10e6);
         vm.prank(caller);
-        vm.expectRevert(TopUpRouter.NotAdmin.selector);
-        router.proposeTreasury(target);
+        vm.expectRevert();
+        router.topUp{value: MIN_TOPUP - 1}(beneficiary);
     }
 
-    /*//////////////////////////////////////////////////////////////
-              T071: PAUSE / GOVERNANCE SEPARATION (002 FR-026)
-    //////////////////////////////////////////////////////////////*/
+    /// @dev 003 FR-015: no caller — deployer, treasury, or stranger — can extract stranded funds.
+    ///      Complements Immutability.t.sol: that file proves no extraction FUNCTION exists; this
+    ///      proves no CALLER can drain the contract by any means available to them.
+    function test_NoCallerCanExtractStrandedFunds() public {
+        forceFundsInto(address(router), 100e6);
+        assertEq(address(router).balance, 100e6, "precondition: router holds stranded funds");
 
-    /// @notice ATTACK: the pauser tries to use its role to reach governance.
-    /// @dev The pauser is deliberately the FASTEST authority (no delay), so it must also be the
-    ///      NARROWEST. If pause authority leaked into treasury control, the fast path would
-    ///      become the attack path.
-    function test_AttackFails_PauserCannotUseRoleToGovern() public {
-        vm.startPrank(pauser);
+        address[3] memory callers = [address(this), treasury, attacker];
+        for (uint256 i = 0; i < callers.length; i++) {
+            vm.prank(callers[i]);
+            (bool ok,) = address(router).call(abi.encodeWithSignature("withdraw()"));
+            assertFalse(ok, "no caller has a withdrawal path");
+        }
 
-        vm.expectRevert(TopUpRouter.NotAdmin.selector);
-        router.proposeTreasury(target);
-
-        vm.expectRevert(TopUpRouter.NotAdmin.selector);
-        router.proposeAdmin(target);
-
-        vm.expectRevert(TopUpRouter.NotAdmin.selector);
-        router.proposePauser(target);
-
-        vm.expectRevert(TopUpRouter.NotAdmin.selector);
-        router.cancelTreasury();
-
-        vm.expectRevert(TopUpRouter.NotAdmin.selector);
-        router.cancelAdmin();
-
-        vm.expectRevert(TopUpRouter.NotAdmin.selector);
-        router.cancelPauser();
-
-        vm.stopPrank();
-
-        assertEq(router.treasury(), treasury, "treasury untouched by the pauser");
-        assertEq(router.admin(), admin, "authority untouched by the pauser");
+        assertEq(address(router).balance, 100e6, "stranded funds remain unreachable");
     }
 
-    /// @notice ATTACK: the admin tries to pause without holding the pauser role.
-    /// @dev Separation cuts both ways. Admin is powerful but slow; it does not get the fast lever
-    ///      for free.
-    function test_AttackFails_AdminCannotPauseWithoutPauserRole() public {
-        vm.prank(admin);
-        vm.expectRevert(TopUpRouter.NotPauser.selector);
-        router.pause();
+    /// @dev Stranded funds stay out of the accounting no matter who tops up afterwards.
+    function test_StrandedFundsNeverEnterAccountingForAnyCaller() public {
+        forceFundsInto(address(router), 50e6);
 
-        assertFalse(router.paused(), "not paused");
-    }
+        vm.prank(attacker);
+        router.topUp{value: 5e6}(beneficiary);
 
-    /// @notice ATTACK: pausing to grief, then trying to reach funds. Pausing moves no money.
-    function test_AttackFails_PauserCanOnlyDenyServiceNeverSteal() public {
-        forceFundsInto(address(router), 50e18);
-        uint256 pauserBefore = pauser.balance;
-
-        vm.prank(pauser);
-        router.pause();
-
-        // The worst a rogue pauser can do is stop top-ups. Nothing moves.
-        assertEq(pauser.balance, pauserBefore, "pauser gained nothing");
-        assertEq(address(router).balance, 50e18, "stranded funds untouched");
-        assertEq(treasury.balance, 0, "no funds moved");
-
-        // And admin can rotate the pauser out — slowly, but it is recoverable.
-        vm.prank(admin);
-        router.proposePauser(stranger);
-        warpPastDelay();
-        router.applyPauser();
-
-        vm.prank(pauser);
-        vm.expectRevert(TopUpRouter.NotPauser.selector);
-        router.unpause();
-
-        vm.prank(stranger);
-        router.unpause();
-        assertFalse(router.paused(), "service restored by the new pauser");
-    }
-
-    function testFuzz_AttackFails_AnyNonPauserCannotPause(address caller) public {
-        vm.assume(caller != pauser);
-        vm.prank(caller);
-        vm.expectRevert(TopUpRouter.NotPauser.selector);
-        router.pause();
+        assertEq(router.contributions(beneficiary), 5e6, "credited msg.value only");
+        assertEq(router.totalRouted(), 5e6, "totals ignore the forced balance");
+        assertEq(address(router).balance, 50e6, "stranded funds untouched");
     }
 }
