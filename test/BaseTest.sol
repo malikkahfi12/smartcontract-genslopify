@@ -22,10 +22,10 @@ abstract contract BaseTest is Test {
     address internal attacker = makeAddr("attacker");
     address internal stranger = makeAddr("stranger");
 
-    /// @dev Native USDC on Arc has 6 decimals: `1e6` base units is one whole USDC, NOT `1e18`
-    ///      (research R-001). Every amount in the test suite is at this scale.
-    uint256 internal constant MIN_TOPUP = 1e6;
-    uint256 internal constant STARTING_BALANCE = 1000e6;
+    /// @dev Native USDC on Arc has 18 decimals: `1e18` base units is one whole USDC, NOT `1e6`.
+    ///      Every amount in the test suite is at this scale.
+    uint256 internal constant MIN_TOPUP = 1e18;
+    uint256 internal constant STARTING_BALANCE = 1000e18;
 
     function setUp() public virtual {
         router = new TopUpRouter(treasury);

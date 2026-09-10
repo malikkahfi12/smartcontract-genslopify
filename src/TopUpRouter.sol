@@ -34,11 +34,12 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol
 ///      role that could be trusted with one anyway.
 ///
 /// @dev ## Payment asset - native USDC only
-///      The payment asset is NATIVE USDC on Arc, 6 DECIMALS: one whole USDC is `1e6` base units of
-///      `msg.value`, NOT the `1e18` every other EVM chain uses for its native currency (003 FR-010,
-///      research R-001). Arc's own documentation calls this the most common porting mistake, and a
-///      previous deployment of this contract was rendered permanently unusable by getting it wrong.
-///      A bare `1e18` in a native-amount position is a defect on sight.
+///      The payment asset is NATIVE USDC on Arc, 18 DECIMALS: one whole USDC is `1e18` base units
+///      of `msg.value`, the same scale every other EVM chain uses for its native currency.
+///      The denomination is the single most consequential constant in this contract: an earlier
+///      deployment was rendered permanently unusable by carrying a minimum at the wrong scale, so
+///      every native-amount literal in source, scripts, and tests must use the `1e18` scale, and a
+///      bare `1e6` in a native-amount position is a defect on sight.
 ///
 ///      Native USDC is the ONLY accepted payment and no other token will ever be supported (003
 ///      FR-017a/b). This contract stores no token address, imports no token interface, and has no
@@ -87,8 +88,8 @@ contract TopUpRouter is ReentrancyGuard {
 
     /// @notice Smallest accepted top-up: one whole USDC, permanently (003 FR-006).
     /// @dev Unit and provenance, per constitution Principle IV's no-magic-numbers rule: native
-    ///      USDC on Arc has 6 decimals, so `1e6` base units is exactly 1.000000 USDC (research
-    ///      R-001, verified against Arc documentation 2026-09-05).
+    ///      USDC on Arc has 18 decimals, so `1e18` base units is exactly one whole USDC
+    ///      (1.000000000000000000).
     ///
     ///      `constant`, not `immutable` and not a constructor argument (003 FR-011, research
     ///      R-003). A constant is identical in every build of a given commit, so testnet and
@@ -97,7 +98,7 @@ contract TopUpRouter is ReentrancyGuard {
     ///
     ///      It can never change. If Arc's USDC price behaviour ever makes this floor wrong, the
     ///      response is a new deployment, not a parameter update.
-    uint256 public constant MIN_TOPUP = 1e6;
+    uint256 public constant MIN_TOPUP = 1e18;
 
     /// @notice Destination receiving every top-up. Fixed at deployment, forever (003 FR-001).
     /// @dev `immutable`: there is no setter at any visibility, no proposal record, and no role
@@ -111,9 +112,11 @@ contract TopUpRouter is ReentrancyGuard {
     ///      the `treasury` field of `ToppedUp`. Renaming it would break every consumer to satisfy a
     ///      style rule about a storage classification they cannot observe. The value's permanence
     ///      is communicated by `immutable` and by this NatSpec, not by its capitalisation.
+    // solhint-disable immutable-vars-naming
     // slither-disable-next-line naming-convention
     // forge-lint: disable-next-line(screaming-snake-case-immutable)
     address public immutable treasury;
+    // solhint-enable immutable-vars-naming
 
     /*//////////////////////////////////////////////////////////////
                                  STORAGE
@@ -200,7 +203,7 @@ contract TopUpRouter is ReentrancyGuard {
 
     /// @notice Top up on behalf of `beneficiary`, forwarding the attached value to the treasury.
     /// @param beneficiary Account to credit. May be the caller or anyone else.
-    /// @dev Attach the amount as transaction value, in base units of native USDC (6 decimals).
+    /// @dev Attach the amount as transaction value, in base units of native USDC (18 decimals).
     ///      There is no approval step and no token parameter: the payment asset is the chain's
     ///      own currency. The full amount reaches the treasury in this same call.
     function topUp(address beneficiary) external payable {

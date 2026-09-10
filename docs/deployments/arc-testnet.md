@@ -189,3 +189,24 @@ deployed. The replacement also removes all governance — no admin, no pauser, n
 dead address fail loudly rather than silently accept calls that always revert. That is an
 operational judgement call for the maintainers. It is also the last time the option will exist —
 the replacement can never be paused.
+
+---
+
+## ERRATUM 2 — 2026-09-09: the 6-decimal correction above is itself withdrawn
+
+**Native USDC on Arc has 18 decimals.** One whole USDC is `1e18` base units.
+
+This reverses the 2026-09-05 erratum, which asserted 6 decimals and on that basis declared this
+deployment non-functional. At 18 decimals, the `MIN_TOPUP` of `1000000000000000000` recorded in the
+table above is exactly one whole USDC, and the original "1 USDC, 18 decimals" annotation was
+correct as written.
+
+**Status of this deployment**: its minimum is at the correct scale. Whether it is otherwise fit to
+use is a separate question — it still carries the 002 governance surface (admin, pauser, 2-day
+timelock) and the single-key window described above, which is why spec
+`003-simplify-immutable-router` replaces it regardless.
+
+**Both errata are preserved unedited.** The denomination has now been asserted in both directions
+in this file, which is the point: verify it against the live chain before relying on either. The
+`003` suite's fork test (`test_Fork_NativeDenominationIsEighteenDecimals`) derives its check from a
+faucet-funded balance so the chain, not the record, supplies the number.

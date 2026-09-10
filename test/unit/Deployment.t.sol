@@ -15,10 +15,12 @@ contract DeploymentTest is BaseTest {
     }
 
     /// @dev 003 FR-006: the minimum is a compile-time constant, identical in every build.
-    function test_MinimumIsOneWholeUsdcAtSixDecimals() public view {
+    function test_MinimumIsOneWholeUsdcAtEighteenDecimals() public view {
         assertEq(router.MIN_TOPUP(), MIN_TOPUP, "minimum matches the harness constant");
-        assertEq(router.MIN_TOPUP(), 1e6, "one whole USDC at Arc's 6 decimals");
-        assertEq(router.MIN_TOPUP(), 1_000_000, "stated in base units, unambiguously");
+        assertEq(router.MIN_TOPUP(), 1e18, "one whole USDC at Arc's 18 decimals");
+        assertEq(
+            router.MIN_TOPUP(), 1_000_000_000_000_000_000, "stated in base units, unambiguously"
+        );
     }
 
     /// @dev A deployment at any other address reports the same constant: it is not per-deployment.
@@ -55,7 +57,7 @@ contract DeploymentTest is BaseTest {
     /// @dev 003 FR-015: no receive/fallback exists, so a bare value transfer must revert.
     function test_RevertWhen_BareValueTransferSent() public {
         vm.prank(payer);
-        (bool ok,) = address(router).call{value: 1e6}("");
+        (bool ok,) = address(router).call{value: 1e18}("");
         assertFalse(ok, "bare transfer must be rejected: no receive/fallback");
     }
 }

@@ -34,7 +34,7 @@ contract AccountingHandler is Test {
         for (uint256 i = 0; i < 4; i++) {
             address actor = address(uint160(uint256(keccak256(abi.encode("actor", i)))));
             actors.push(actor);
-            vm.deal(actor, 1_000_000e6);
+            vm.deal(actor, 1_000_000e18);
         }
         for (uint256 i = 0; i < 3; i++) {
             beneficiaries.push(address(uint160(uint256(keccak256(abi.encode("bene", i))))));
@@ -43,7 +43,7 @@ contract AccountingHandler is Test {
         // The handler itself must hold funds, or `forceFunds` cannot construct a payable
         // ForceSender and every call reverts - which would make the INV-9 assertions pass
         // vacuously while never actually forcing anything in.
-        vm.deal(address(this), 1_000_000e6);
+        vm.deal(address(this), 1_000_000e18);
     }
 
     function beneficiaryCount() external view returns (uint256) {
@@ -54,7 +54,7 @@ contract AccountingHandler is Test {
     function topUp(uint256 actorSeed, uint256 beneSeed, uint256 amountSeed) external {
         address actor = actors[actorSeed % actors.length];
         address bene = beneficiaries[beneSeed % beneficiaries.length];
-        uint256 amount = bound(amountSeed, ROUTER.MIN_TOPUP(), 500e6);
+        uint256 amount = bound(amountSeed, ROUTER.MIN_TOPUP(), 500e18);
 
         uint256 totalBefore = ROUTER.totalRouted();
 
@@ -85,7 +85,7 @@ contract AccountingHandler is Test {
     /// @notice Force native funds into the router via SELFDESTRUCT (INV-9).
     /// @dev This is the interference the accounting must be immune to.
     function forceFunds(uint256 amountSeed) external {
-        uint256 amount = bound(amountSeed, 1, 100e6);
+        uint256 amount = bound(amountSeed, 1, 100e18);
         ForceSender sender = new ForceSender{value: amount}();
         sender.forceSend(payable(address(ROUTER)));
 

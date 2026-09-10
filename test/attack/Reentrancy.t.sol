@@ -22,7 +22,7 @@ contract ReentrancyAttackTest is BaseTest {
     function test_AttackFails_ReentrantTreasuryCannotDoubleCredit() public {
         vm.prank(payer);
         vm.expectRevert(TopUpRouter.TreasuryTransferFailed.selector);
-        router.topUp{value: 10e6}(beneficiary);
+        router.topUp{value: 10e18}(beneficiary);
 
         assertEq(router.totalRouted(), 0, "no funds routed");
         assertEq(router.contributions(beneficiary), 0, "beneficiary not credited");
@@ -36,7 +36,7 @@ contract ReentrancyAttackTest is BaseTest {
 
         vm.prank(payer);
         vm.expectRevert(TopUpRouter.TreasuryTransferFailed.selector);
-        router.topUp{value: 10e6}(beneficiary);
+        router.topUp{value: 10e18}(beneficiary);
 
         assertEq(payer.balance, payerBefore, "payer keeps their funds");
         assertEq(address(evil).balance, 0, "treasury received nothing");
@@ -47,9 +47,9 @@ contract ReentrancyAttackTest is BaseTest {
         evil.setMode(MaliciousTreasury.Mode.Accept);
 
         vm.prank(payer);
-        router.topUp{value: 10e6}(beneficiary);
+        router.topUp{value: 10e18}(beneficiary);
 
-        assertEq(address(evil).balance, 10e6, "honest contract treasury receives funds");
-        assertEq(router.contributions(beneficiary), 10e6, "credited");
+        assertEq(address(evil).balance, 10e18, "honest contract treasury receives funds");
+        assertEq(router.contributions(beneficiary), 10e18, "credited");
     }
 }

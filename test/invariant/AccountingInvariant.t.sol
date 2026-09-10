@@ -16,7 +16,7 @@ contract AccountingInvariantTest is Test {
 
     address internal treasury = makeAddr("invariantTreasury");
 
-    uint256 internal constant MIN_TOPUP = 1e6;
+    uint256 internal constant MIN_TOPUP = 1e18;
 
     function setUp() public {
         router = new TopUpRouter(treasury);

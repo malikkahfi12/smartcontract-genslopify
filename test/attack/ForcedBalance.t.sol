@@ -12,8 +12,8 @@ import {MockERC20} from "../mocks/MockERC20.sol";
 contract ForcedBalanceAttackTest is BaseTest {
     /// @notice ATTACK: inflate the router's balance, hoping accounting reads it.
     function test_AttackFails_ForcedFundsDoNotAffectAccounting() public {
-        forceFundsInto(address(router), 500e6);
-        assertEq(address(router).balance, 500e6, "precondition: router holds forced funds");
+        forceFundsInto(address(router), 500e18);
+        assertEq(address(router).balance, 500e18, "precondition: router holds forced funds");
 
         assertEq(router.totalRouted(), 0, "forced funds are not routed");
         assertEq(router.contributions(attacker), 0, "forced funds credit nobody");
@@ -21,9 +21,9 @@ contract ForcedBalanceAttackTest is BaseTest {
 
     /// @notice ATTACK: force funds first, then top up, hoping the credit is inflated.
     function test_AttackFails_TopUpAfterForcedFundsCreditsOnlyMsgValue() public {
-        forceFundsInto(address(router), 500e6);
+        forceFundsInto(address(router), 500e18);
 
-        uint256 amount = 10e6;
+        uint256 amount = 10e18;
         uint256 treasuryBefore = treasury.balance;
 
         vm.prank(payer);
@@ -32,19 +32,19 @@ contract ForcedBalanceAttackTest is BaseTest {
         assertEq(router.contributions(beneficiary), amount, "credited msg.value only");
         assertEq(router.totalRouted(), amount, "routed msg.value only");
         assertEq(treasury.balance - treasuryBefore, amount, "treasury got msg.value only");
-        assertEq(address(router).balance, 500e6, "forced funds remain stranded, untouched");
+        assertEq(address(router).balance, 500e18, "forced funds remain stranded, untouched");
     }
 
     /// @notice Forced funds must not brick the contract either: top-ups keep working.
     function test_ForcedFundsDoNotBreakSubsequentTopUps() public {
-        forceFundsInto(address(router), 1e6);
+        forceFundsInto(address(router), 1e18);
 
         vm.startPrank(payer);
-        router.topUp{value: 2e6}(beneficiary);
-        router.topUp{value: 3e6}(beneficiary);
+        router.topUp{value: 2e18}(beneficiary);
+        router.topUp{value: 3e18}(beneficiary);
         vm.stopPrank();
 
-        assertEq(router.contributions(beneficiary), 5e6, "accounting unaffected");
+        assertEq(router.contributions(beneficiary), 5e18, "accounting unaffected");
     }
 
     /// @notice Stranded funds are permanently unrecoverable (003 FR-015).
@@ -52,7 +52,7 @@ contract ForcedBalanceAttackTest is BaseTest {
     ///      whether the admin could extract stranded funds; now there is no admin, so it asks
     ///      whether ANYONE can, which is the stronger question.
     function test_StrandedFundsAreUnrecoverableByAnyone() public {
-        forceFundsInto(address(router), 100e6);
+        forceFundsInto(address(router), 100e18);
 
         vm.prank(attacker);
         (bool ok,) = address(router).call(abi.encodeWithSignature("withdraw()"));
@@ -62,12 +62,12 @@ contract ForcedBalanceAttackTest is BaseTest {
         (bool ok2,) = address(router).call(abi.encodeWithSignature("sweep(address)", attacker));
         assertFalse(ok2, "no sweep function exists");
 
-        assertEq(address(router).balance, 100e6, "funds remain stranded");
+        assertEq(address(router).balance, 100e18, "funds remain stranded");
     }
 
     function testFuzz_ForcedFundsNeverAffectCredit(uint256 forced, uint256 amount) public {
-        forced = bound(forced, 1, 1000e6);
-        amount = bound(amount, MIN_TOPUP, 100e6);
+        forced = bound(forced, 1, 1000e18);
+        amount = bound(amount, MIN_TOPUP, 100e18);
 
         forceFundsInto(address(router), forced);
 
@@ -91,12 +91,12 @@ contract ForcedBalanceAttackTest is BaseTest {
     ///      break a test rather than slip through review. The mitigation lives in documentation
     ///      (003 FR-018), which is the only place it can live.
     function test_MisSentTokensAreStrandedAndAffectNothing() public {
-        MockERC20 token = new MockERC20(stranger, 1000e6);
+        MockERC20 token = new MockERC20(stranger, 1000e18);
 
         vm.prank(stranger);
-        token.transfer(address(router), 500e6);
+        token.transfer(address(router), 500e18);
 
-        assertEq(token.balanceOf(address(router)), 500e6, "tokens arrived at the router");
+        assertEq(token.balanceOf(address(router)), 500e18, "tokens arrived at the router");
 
         // The contribution record is untouched: no credit, no total.
         assertEq(router.contributions(stranger), 0, "sending a token credits nobody");
@@ -104,18 +104,18 @@ contract ForcedBalanceAttackTest is BaseTest {
 
         // A native top-up afterwards behaves exactly as if the tokens were not there.
         vm.prank(payer);
-        router.topUp{value: 5e6}(beneficiary);
+        router.topUp{value: 5e18}(beneficiary);
 
-        assertEq(router.contributions(beneficiary), 5e6, "native accounting is unaffected");
-        assertEq(router.totalRouted(), 5e6, "totals count native USDC only");
-        assertEq(token.balanceOf(address(router)), 500e6, "tokens remain stranded, untouched");
+        assertEq(router.contributions(beneficiary), 5e18, "native accounting is unaffected");
+        assertEq(router.totalRouted(), 5e18, "totals count native USDC only");
+        assertEq(token.balanceOf(address(router)), 500e18, "tokens remain stranded, untouched");
     }
 
     /// @dev And nobody can get them back — not the sender, not the treasury, not the deployer.
     function test_NoCallerCanRecoverMisSentTokens() public {
-        MockERC20 token = new MockERC20(stranger, 1000e6);
+        MockERC20 token = new MockERC20(stranger, 1000e18);
         vm.prank(stranger);
-        token.transfer(address(router), 500e6);
+        token.transfer(address(router), 500e18);
 
         address[3] memory callers = [stranger, treasury, address(this)];
         string[3] memory attempts =
@@ -125,11 +125,11 @@ contract ForcedBalanceAttackTest is BaseTest {
             for (uint256 j = 0; j < attempts.length; j++) {
                 vm.prank(callers[i]);
                 (bool ok,) = address(router)
-                    .call(abi.encodeWithSignature(attempts[j], address(token), uint256(500e6)));
+                    .call(abi.encodeWithSignature(attempts[j], address(token), uint256(500e18)));
                 assertFalse(ok, "no recovery path exists for any caller");
             }
         }
 
-        assertEq(token.balanceOf(address(router)), 500e6, "tokens are lost permanently");
+        assertEq(token.balanceOf(address(router)), 500e18, "tokens are lost permanently");
     }
 }

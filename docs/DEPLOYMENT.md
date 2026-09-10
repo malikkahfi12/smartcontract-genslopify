@@ -52,13 +52,13 @@ create, fund, or safeguard — and no operational key whose loss could freeze an
 
 Arc testnet faucet: <https://faucet.circle.com>
 
-On Arc the native gas token **is USDC with 6 DECIMALS** — one whole USDC is `1000000` base units,
-not `1e18`. This single balance covers both the deployment gas and any test top-up you make
-afterwards.
+On Arc the native gas token **is USDC with 18 DECIMALS** — one whole USDC is
+`1000000000000000000` base units, not `1e6`. This single balance covers both the deployment gas
+and any test top-up you make afterwards.
 
 Note the balance the faucet gives you. It is a direct check on the denomination: a grant of a few
-USDC reads as a few million base units. If it reads as some multiple of `1e18`, stop — the
-6-decimal assumption this whole deployment rests on would be wrong. (`ARC_FUNDED_ACCOUNT` in
+USDC reads as a few multiples of `1e18`. If it reads as only a few million base units, stop — the
+18-decimal assumption this whole deployment rests on would be wrong. (`ARC_FUNDED_ACCOUNT` in
 `.env` wires this address into the fork test's strict check.)
 
 ```bash
@@ -81,9 +81,9 @@ Then set:
 | `DEPLOYER_ADDRESS` | The deployer address from step 1. |
 
 That is the whole list. There is no `ADMIN_ADDRESS`, no `PAUSER_ADDRESS`, and no `MIN_TOPUP_WEI`
-any more — the contract has no roles, and its minimum is a compile-time constant of `1e6`
-(1.000000 USDC). If those variables are still in your local `.env` from a previous deployment,
-they are ignored entirely and cannot reach the contract.
+any more — the contract has no roles, and its minimum is a compile-time constant of `1e18`
+(1.000000000000000000 USDC). If those variables are still in your local `.env` from a previous
+deployment, they are ignored entirely and cannot reach the contract.
 
 The deployer holds **no authority** over the contract once deployed, because there is no authority
 to hold. It only pays gas.
@@ -189,7 +189,7 @@ password is still prompted for interactively.
 export ROUTER=<deployed address>
 
 cast call $ROUTER "treasury()(address)"             --rpc-url $ARC_TESTNET_RPC
-cast call $ROUTER "MIN_TOPUP()(uint256)"            --rpc-url $ARC_TESTNET_RPC  # 1000000
+cast call $ROUTER "MIN_TOPUP()(uint256)"            --rpc-url $ARC_TESTNET_RPC  # 1000000000000000000
 cast call $ROUTER "totalRouted()(uint256)"          --rpc-url $ARC_TESTNET_RPC  # 0
 ```
 
@@ -224,13 +224,13 @@ Before announcing the address, send one real top-up and confirm it lands:
 
 ```bash
 source .env
-cast send $ROUTER "topUpSelf()" --value 1000000 \
+cast send $ROUTER "topUpSelf()" --value 1000000000000000000 \
   --account arc-deployer --rpc-url $ARC_TESTNET_RPC
 
-cast balance $TREASURY_ADDRESS --rpc-url $ARC_TESTNET_RPC   # should have increased by 1000000
+cast balance $TREASURY_ADDRESS --rpc-url $ARC_TESTNET_RPC   # should have increased by 1e18
 ```
 
-`1000000` is exactly the minimum: one whole USDC at 6 decimals.
+`1000000000000000000` is exactly the minimum: one whole USDC at 18 decimals.
 
 If this transfer fails, the treasury cannot receive and **the deployment is unusable**. There is no
 way to repoint it. Deploy again with a corrected address and abandon this one.
@@ -245,9 +245,9 @@ There is no step 10. There is no multisig handover, because there is no authorit
 |---|---|
 | `WrongNetwork(1, 5042002)` | `--rpc-url` missing or pointing elsewhere. |
 | `MissingParameter("...")` | That variable is empty in `.env`, or you forgot `source .env`. |
-| `insufficient funds` | Deployer is unfunded — step 3. Gas is USDC on Arc, at 6 decimals. |
+| `insufficient funds` | Deployer is unfunded — step 3. Gas is USDC on Arc, at 18 decimals. |
 | `ZeroAddress` / `SelfAddress` | `TREASURY_ADDRESS` is empty or is the router itself. |
-| `BelowMinimum(sent, 1000000)` on a test top-up | You sent less than 1 whole USDC. Note the minimum is `1e6`, not `1e18`. |
+| `BelowMinimum(sent, 1000000000000000000)` on a test top-up | You sent less than 1 whole USDC. Note the minimum is `1e18`, not `1e6`. |
 | Password prompt loops | Wrong password. `cast wallet list` confirms the account exists; there is no recovery for a forgotten keystore password. |
 | `Sourcify verification ... 404 Not Found` (x5) | `--verifier blockscout` was omitted. The deployment itself succeeded — verify separately, see the section above. Not an API-key problem. |
 | Explorer shows "partially verified" | Expected: `bytecode_hash = "none"` removes the metadata hash. Source still matches deployed bytecode. |

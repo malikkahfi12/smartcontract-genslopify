@@ -25,7 +25,7 @@ contract DoSGriefingAttackTest is BaseTest {
 
         vm.prank(payer);
         vm.expectRevert(TopUpRouter.TreasuryTransferFailed.selector);
-        router.topUp{value: 10e6}(beneficiary);
+        router.topUp{value: 10e18}(beneficiary);
 
         assertEq(router.contributions(beneficiary), 0, "no credit granted");
         assertEq(router.totalRouted(), 0, "nothing routed");
@@ -39,7 +39,7 @@ contract DoSGriefingAttackTest is BaseTest {
 
         vm.prank(payer);
         vm.expectRevert(TopUpRouter.TreasuryTransferFailed.selector);
-        router.topUp{value: 10e6}(beneficiary);
+        router.topUp{value: 10e18}(beneficiary);
 
         assertEq(router.contributions(beneficiary), 0, "no credit granted");
         assertEq(address(router).balance, 0, "no funds stranded");
@@ -49,14 +49,14 @@ contract DoSGriefingAttackTest is BaseTest {
     function test_RecoversOnceTreasuryBehaves() public {
         vm.prank(payer);
         vm.expectRevert(TopUpRouter.TreasuryTransferFailed.selector);
-        router.topUp{value: 10e6}(beneficiary);
+        router.topUp{value: 10e18}(beneficiary);
 
         evil.setMode(MaliciousTreasury.Mode.Accept);
 
         vm.prank(payer);
-        router.topUp{value: 10e6}(beneficiary);
+        router.topUp{value: 10e18}(beneficiary);
 
-        assertEq(router.contributions(beneficiary), 10e6, "credited exactly once");
-        assertEq(router.totalRouted(), 10e6, "routed exactly once");
+        assertEq(router.contributions(beneficiary), 10e18, "credited exactly once");
+        assertEq(router.totalRouted(), 10e18, "routed exactly once");
     }
 }

@@ -62,7 +62,7 @@ contract Deploy is Script {
     function _report(TopUpRouter router, address treasury) internal view {
         console2.log("TopUpRouter deployed:", address(router));
         console2.log("  treasury: ", treasury, "(PERMANENT - cannot be changed by anyone)");
-        console2.log("  MIN_TOPUP:", router.MIN_TOPUP(), "base units = 1.000000 USDC");
+        console2.log("  MIN_TOPUP:", router.MIN_TOPUP(), "base units = 1.000000000000000000 USDC");
         console2.log("");
         console2.log("This contract has no admin, no pauser, and no upgrade path.");
         console2.log("Next: verify on https://testnet.arcscan.app, send one test top-up to");

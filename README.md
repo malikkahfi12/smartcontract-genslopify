@@ -37,11 +37,12 @@ one sitting, which is the property that makes an ungoverned immutable contract d
 
 ## Denomination — read this before writing any integration
 
-**Native USDC on Arc has 6 decimals, not 18.** One whole USDC is `1e6` base units of `msg.value`.
-Arc's own documentation calls this the most common mistake when porting an EVM application, and
-an earlier deployment of this contract was rendered permanently unusable by getting it wrong.
+**Native USDC on Arc has 18 decimals.** One whole USDC is `1e18` base units of `msg.value`, the
+same scale as the native currency on other EVM chains. Denomination is still the easiest thing to
+get wrong here: an earlier deployment was rendered permanently unusable by carrying a minimum at
+the wrong scale, so treat a bare `1e6` in a native-amount position as a defect.
 
-The minimum top-up is `1e6` — exactly 1.000000 USDC — fixed in the code forever.
+The minimum top-up is `1e18` — exactly 1.000000000000000000 USDC — fixed in the code forever.
 
 ## Accepted terminal risks — read this too
 
