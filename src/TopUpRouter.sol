@@ -113,8 +113,10 @@ contract TopUpRouter is ReentrancyGuard {
     ///      style rule about a storage classification they cannot observe. The value's permanence
     ///      is communicated by `immutable` and by this NatSpec, not by its capitalisation.
     // slither-disable-next-line naming-convention
+    // solhint-disable immutable-vars-naming
     // forge-lint: disable-next-line(screaming-snake-case-immutable)
     address public immutable treasury;
+    // solhint-enable immutable-vars-naming
 
     /*//////////////////////////////////////////////////////////////
                                  STORAGE
