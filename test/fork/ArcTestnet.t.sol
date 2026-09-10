@@ -134,10 +134,12 @@ contract ArcTestnetForkTest is Test {
         // Configuration-free corroboration: gas is priced in the native token, so a plausible gas
         // price is itself evidence about the denomination. An 18-decimal chain prices gas in
         // gwei-scale numbers (~1e9); a 6-decimal chain cannot reach that scale at all.
+        // Reads the forked block's base fee, which comes from the chain. `tx.gasprice` would not:
+        // forge sets it to 0 in tests unless `--gas-price` is passed.
         assertGe(
-            tx.gasprice,
+            block.basefee,
             1e6,
-            "gas price looks 6-decimal-scaled; re-verify the native denomination before deploying"
+            "base fee looks 6-decimal-scaled; re-verify the native denomination before deploying"
         );
     }
 
