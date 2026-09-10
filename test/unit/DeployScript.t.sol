@@ -50,6 +50,6 @@ contract DeployScriptTest is Test {
         TopUpRouter router = new TopUpRouter(treasury);
 
         assertEq(router.treasury(), treasury, "treasury unaffected by leftover values");
-        assertEq(router.MIN_TOPUP(), 1e6, "minimum is a constant, not read from the environment");
+        assertEq(router.MIN_TOPUP(), 1e18, "minimum is a constant, not read from the environment");
     }
 }

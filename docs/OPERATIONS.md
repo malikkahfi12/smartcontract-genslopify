@@ -23,8 +23,8 @@ cast call $ROUTER "totalRouted()(uint256)"          --rpc-url $ARC_TESTNET_RPC
 cast call $ROUTER "contributions(address)(uint256)" $ACCOUNT --rpc-url $ARC_TESTNET_RPC
 ```
 
-Amounts are in base units of native USDC, which has **6 decimals** on Arc. Divide by `1_000_000`
-for whole USDC. Do not divide by `1e18`.
+Amounts are in base units of native USDC, which has **18 decimals** on Arc. Divide by
+`1_000_000_000_000_000_000` for whole USDC. Do not divide by `1e6`.
 
 ## Incident response
 

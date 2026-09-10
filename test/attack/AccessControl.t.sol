@@ -20,23 +20,23 @@ contract AccessControlAttackTest is BaseTest {
     ///      constructor sees. It must be as ordinary as anyone else.
     function test_DeployerHasNoStandingPrivilege() public {
         // `address(this)` deployed the router in setUp().
-        vm.deal(address(this), 10e6);
+        vm.deal(address(this), 10e18);
         uint256 before = treasury.balance;
 
-        router.topUp{value: 2e6}(beneficiary);
+        router.topUp{value: 2e18}(beneficiary);
 
-        assertEq(treasury.balance - before, 2e6, "deployer's top-up behaves like anyone else's");
-        assertEq(router.contributions(beneficiary), 2e6, "credited on the same terms");
+        assertEq(treasury.balance - before, 2e18, "deployer's top-up behaves like anyone else's");
+        assertEq(router.contributions(beneficiary), 2e18, "credited on the same terms");
     }
 
     /// @dev The treasury is named in the contract, which makes it the second-likeliest accidental
     ///      privilege holder. Being the destination confers nothing.
     function test_TreasuryHasNoStandingPrivilege() public {
-        vm.deal(treasury, 10e6);
+        vm.deal(treasury, 10e18);
         vm.prank(treasury);
-        router.topUp{value: 2e6}(beneficiary);
+        router.topUp{value: 2e18}(beneficiary);
 
-        assertEq(router.contributions(beneficiary), 2e6, "treasury is just another caller");
+        assertEq(router.contributions(beneficiary), 2e18, "treasury is just another caller");
     }
 
     /// @dev SC-004a stated directly: the full surface behaves identically for any two callers.
@@ -50,13 +50,13 @@ contract AccessControlAttackTest is BaseTest {
         address benA = makeAddr("benA");
         address benB = makeAddr("benB");
 
-        vm.deal(callerA, 10e6);
+        vm.deal(callerA, 10e18);
         vm.prank(callerA);
-        router.topUp{value: 3e6}(benA);
+        router.topUp{value: 3e18}(benA);
 
-        vm.deal(callerB, 10e6);
+        vm.deal(callerB, 10e18);
         vm.prank(callerB);
-        router.topUp{value: 3e6}(benB);
+        router.topUp{value: 3e18}(benB);
 
         assertEq(
             router.contributions(benA),
@@ -71,7 +71,7 @@ contract AccessControlAttackTest is BaseTest {
         vm.assume(caller != address(0) && caller.code.length == 0);
         vm.assume(caller != address(router));
 
-        vm.deal(caller, 10e6);
+        vm.deal(caller, 10e18);
         vm.prank(caller);
         vm.expectRevert();
         router.topUp{value: MIN_TOPUP - 1}(beneficiary);
@@ -81,8 +81,8 @@ contract AccessControlAttackTest is BaseTest {
     ///      Complements Immutability.t.sol: that file proves no extraction FUNCTION exists; this
     ///      proves no CALLER can drain the contract by any means available to them.
     function test_NoCallerCanExtractStrandedFunds() public {
-        forceFundsInto(address(router), 100e6);
-        assertEq(address(router).balance, 100e6, "precondition: router holds stranded funds");
+        forceFundsInto(address(router), 100e18);
+        assertEq(address(router).balance, 100e18, "precondition: router holds stranded funds");
 
         address[3] memory callers = [address(this), treasury, attacker];
         for (uint256 i = 0; i < callers.length; i++) {
@@ -91,18 +91,18 @@ contract AccessControlAttackTest is BaseTest {
             assertFalse(ok, "no caller has a withdrawal path");
         }
 
-        assertEq(address(router).balance, 100e6, "stranded funds remain unreachable");
+        assertEq(address(router).balance, 100e18, "stranded funds remain unreachable");
     }
 
     /// @dev Stranded funds stay out of the accounting no matter who tops up afterwards.
     function test_StrandedFundsNeverEnterAccountingForAnyCaller() public {
-        forceFundsInto(address(router), 50e6);
+        forceFundsInto(address(router), 50e18);
 
         vm.prank(attacker);
-        router.topUp{value: 5e6}(beneficiary);
+        router.topUp{value: 5e18}(beneficiary);
 
-        assertEq(router.contributions(beneficiary), 5e6, "credited msg.value only");
-        assertEq(router.totalRouted(), 5e6, "totals ignore the forced balance");
-        assertEq(address(router).balance, 50e6, "stranded funds untouched");
+        assertEq(router.contributions(beneficiary), 5e18, "credited msg.value only");
+        assertEq(router.totalRouted(), 5e18, "totals ignore the forced balance");
+        assertEq(address(router).balance, 50e18, "stranded funds untouched");
     }
 }

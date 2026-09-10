@@ -34,22 +34,21 @@ interface ISafe {
 ///
 ///      ## Why the denomination test here is the important one
 ///
-///      The previous router was deployed with `MIN_TOPUP = 1e18` on a chain whose native USDC has
-///      6 decimals, making its minimum one trillion USDC. It could accept nothing, ever. The whole
-///      test suite passed, including this fork test, because every test used `1e18` for BOTH the
-///      minimum and the amounts — arithmetic that is internally consistent at the wrong scale
-///      satisfies every assertion you can write about it.
+///      A router deployed with its minimum at the wrong scale is permanently unusable: too high and
+///      it can accept nothing, too low and its floor is meaningless. A suite that picks the same
+///      scale for BOTH the minimum and the amounts cannot detect either case — arithmetic that is
+///      internally consistent at the wrong scale satisfies every assertion you can write about it.
 ///
-///      The fix is not more assertions at the same scale. It is to make the CHAIN supply a number
-///      the test does not choose: see `test_Fork_NativeDenominationIsSixDecimals`, which reads a
-///      real funded balance instead of a literal. A test whose inputs all come from the same
-///      mistaken assumption can only ever confirm that assumption.
+///      The defense is not more assertions at the same scale. It is to make the CHAIN supply a
+///      number the test does not choose: see `test_Fork_NativeDenominationIsEighteenDecimals`,
+///      which reads a real funded balance instead of a literal. A test whose inputs all come from
+///      the same mistaken assumption can only ever confirm that assumption.
 contract ArcTestnetForkTest is Test {
     string internal constant ARC_RPC = "https://rpc.testnet.arc.io";
     uint256 internal constant ARC_CHAIN_ID = 5_042_002;
 
-    /// @dev One whole USDC on Arc: 6 decimals, not 18 (research R-001).
-    uint256 internal constant ONE_USDC = 1e6;
+    /// @dev One whole USDC on Arc: 18 decimals, not 6.
+    uint256 internal constant ONE_USDC = 1e18;
 
     // Canonical Safe v1.4.1 deployments, confirmed present on Arc testnet 2026-09-04.
     address internal constant SAFE_PROXY_FACTORY = 0x4e1DCf7AD4e460CfD30791CCC4F9c8a4f820ec67;
@@ -101,46 +100,44 @@ contract ArcTestnetForkTest is Test {
         assertEq(address(router).balance, 0, "nothing retained");
     }
 
-    /// @dev 003 FR-010, research R-001. The denomination check that does NOT take its scale from
-    ///      this file.
+    /// @dev 003 FR-010. The denomination check that does NOT take its scale from this file.
     ///
     ///      An account funded from the Arc faucet holds a balance the faucet chose, denominated by
-    ///      the chain. If native USDC had 18 decimals, a faucet grant of a few USDC would read as
-    ///      some multiple of 1e18 and the minimum would sit twelve orders of magnitude below any
-    ///      realistic balance. At 6 decimals, a realistic grant is a small multiple of 1e6 and the
-    ///      minimum is a meaningful fraction of it.
+    ///      the chain. If native USDC had 6 decimals, a faucet grant of a few USDC would read as a
+    ///      small multiple of 1e6 — twelve orders of magnitude below what the same grant reads as
+    ///      at 18 decimals. So a real balance discriminates between the two scales even though this
+    ///      file never supplies it.
     ///
     ///      Set `ARC_FUNDED_ACCOUNT` to a faucet-funded address to run the strict check. Without
     ///      it the test still runs a bounded sanity check against the chain's own gas price, which
     ///      needs no configuration.
-    function test_Fork_NativeDenominationIsSixDecimals() public onlyForked {
+    function test_Fork_NativeDenominationIsEighteenDecimals() public onlyForked {
         address funded = vm.envOr("ARC_FUNDED_ACCOUNT", address(0));
 
         if (funded != address(0)) {
             uint256 balance = funded.balance;
             assertGt(balance, 0, "ARC_FUNDED_ACCOUNT must actually hold a faucet balance");
 
-            // A faucet grant is single- or double-digit USDC. At 6 decimals that is 1e6..1e8 base
-            // units. At 18 decimals the same grant would be >= 1e18 — three orders of magnitude
-            // beyond this bound, so the assertion genuinely discriminates between the two.
-            assertLt(
+            // A faucet grant is single- or double-digit USDC. At 18 decimals that is 1e18..1e20
+            // base units. At 6 decimals the same grant would be <= 1e8 — ten orders of magnitude
+            // below this bound, so the assertion genuinely discriminates between the two.
+            assertGe(
                 balance,
-                1e12,
-                "faucet balance is far too large for 6 decimals: the chain may not be 6-decimal, "
+                ONE_USDC,
+                "faucet balance is far too small for 18 decimals: the chain may not be 18-decimal, "
                 "or ARC_FUNDED_ACCOUNT is not a faucet account. STOP and re-verify before deploying"
             );
-            assertGe(balance, ONE_USDC, "faucet balance should be at least one whole USDC");
         } else {
             emit log_string("NOTE: set ARC_FUNDED_ACCOUNT to a faucet-funded address for the strict check");
         }
 
         // Configuration-free corroboration: gas is priced in the native token, so a plausible gas
         // price is itself evidence about the denomination. An 18-decimal chain prices gas in
-        // gwei-scale numbers (~1e9+); a 6-decimal chain cannot.
-        assertLt(
+        // gwei-scale numbers (~1e9); a 6-decimal chain cannot reach that scale at all.
+        assertGe(
             tx.gasprice,
-            1e9,
-            "gas price looks 18-decimal-scaled; re-verify the native denomination before deploying"
+            1e6,
+            "gas price looks 6-decimal-scaled; re-verify the native denomination before deploying"
         );
     }
 

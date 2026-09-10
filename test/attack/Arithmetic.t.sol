@@ -30,7 +30,7 @@ contract ArithmeticAttackTest is BaseTest {
     /// @notice Totals accumulate correctly across many top-ups without wrapping.
     function test_ManyTopUpsAccumulateExactly() public {
         uint256 n = 50;
-        uint256 each = 2e6;
+        uint256 each = 2e18;
         vm.deal(payer, n * each);
 
         vm.startPrank(payer);
@@ -57,8 +57,8 @@ contract ArithmeticAttackTest is BaseTest {
 
     /// @notice INV-2: totals are monotonically non-decreasing across arbitrary sequences.
     function testFuzz_TotalsAreMonotonic(uint256 a, uint256 b) public {
-        a = bound(a, MIN_TOPUP, 100e6);
-        b = bound(b, MIN_TOPUP, 100e6);
+        a = bound(a, MIN_TOPUP, 100e18);
+        b = bound(b, MIN_TOPUP, 100e18);
 
         vm.startPrank(payer);
         router.topUp{value: a}(beneficiary);

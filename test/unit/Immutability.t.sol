@@ -148,9 +148,9 @@ contract ImmutabilityTest is BaseTest {
     /// @dev 003 FR-015/FR-017c: no `receive` or `fallback`, so nothing can be pushed in by a bare
     ///      transfer and no unmatched call is silently swallowed.
     function test_NoReceiveOrFallbackExists() public {
-        vm.deal(stranger, 10e6);
+        vm.deal(stranger, 10e18);
         vm.prank(stranger);
-        (bool bare,) = address(router).call{value: 1e6}("");
+        (bool bare,) = address(router).call{value: 1e18}("");
         assertFalse(bare, "bare value transfer must revert: no receive");
 
         vm.prank(stranger);
