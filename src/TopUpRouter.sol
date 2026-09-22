@@ -4,7 +4,7 @@ pragma solidity 0.8.28;
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 /// @title TopUpRouter
-/// @author Forgeify
+/// @author Genslopify
 /// @notice Accepts native USDC top-ups on Arc and forwards them straight to a fixed treasury
 ///         address, recording who paid and who was credited. There is no way to get funds back
 ///         out, and no way to change where they go.
