@@ -21,7 +21,7 @@ jobs:
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
         with:
-          version: nightly
+          version: v1.8.1
 
       # Gate 1: formatting
       - name: forge fmt --check
@@ -39,8 +39,9 @@ jobs:
         run: forge test -vvv
 
       # Gate 6: no unexplained gas regression
+      # Fork tests are excluded: their gas depends on live chain state, not on our code.
       - name: forge snapshot --check
-        run: forge snapshot --check
+        run: forge snapshot --check --no-match-path "test/fork/*"
 
   # Gate 4: coverage threshold. Constitution Principle II requires >=95%
   # lines AND branches on src/.
@@ -55,7 +56,7 @@ jobs:
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
         with:
-          version: nightly
+          version: v1.8.1
 
       - name: Install lcov
         run: sudo apt-get update && sudo apt-get install -y lcov
@@ -84,7 +85,7 @@ jobs:
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
         with:
-          version: nightly
+          version: v1.8.1
 
       - name: Slither
         uses: crytic/slither-action@v0.4.0

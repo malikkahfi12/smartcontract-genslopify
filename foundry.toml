@@ -48,6 +48,8 @@ ast = true
 # Principle II: minimum 10,000 fuzz runs on invariant-bearing functions.
 [fuzz]
 runs = 10_000
+# Fixed seed: fuzz gas averages in .gas-snapshot must be reproducible, or snapshot --check flakes.
+seed = "0x1"
 max_test_rejects = 500_000
 
 # Principle II: stateful invariant testing is required for a value-moving contract.
