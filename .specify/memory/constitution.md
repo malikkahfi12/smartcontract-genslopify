@@ -45,7 +45,7 @@ Deferred items / TODOs:
   below. Amend this constitution when mainnet parameters are announced.
 -->
 
-# Forgeify Smart Contract Constitution
+# Genslopify Smart Contract Constitution
 
 ## Core Principles
 

@@ -195,7 +195,7 @@ contract ArcTestnetForkTest is Test {
 
         safe = ISafeProxyFactory(SAFE_PROXY_FACTORY)
             .createProxyWithNonce(
-                SAFE_SINGLETON, initializer, uint256(keccak256("forgeify-fork-test-003"))
+                SAFE_SINGLETON, initializer, uint256(keccak256("genslopify-fork-test-003"))
             );
     }
 }
