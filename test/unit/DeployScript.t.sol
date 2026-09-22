@@ -19,14 +19,36 @@ contract DeployScriptTest is Test {
     }
 
     function test_AcceptsValidArcTestnetConfiguration() public view {
-        deployer.validate(treasury);
+        deployer.validate("testnet", treasury);
+    }
+
+    function test_AcceptsValidArcMainnetConfiguration() public {
+        vm.chainId(5042); // Arc mainnet
+        deployer.validate("mainnet", treasury);
     }
 
     /// @dev Constitution Principle VI: never deploy to an unintended network.
     function test_RevertWhen_WrongNetwork() public {
         vm.chainId(1); // Ethereum mainnet
         vm.expectRevert(abi.encodeWithSelector(Deploy.WrongNetwork.selector, 1, 5_042_002));
-        deployer.validate(treasury);
+        deployer.validate("testnet", treasury);
+    }
+
+    /// @dev The named network and the RPC must agree: a testnet RPC must not satisfy "mainnet".
+    function test_RevertWhen_NetworkDoesNotMatchRpc() public {
+        vm.expectRevert(abi.encodeWithSelector(Deploy.WrongNetwork.selector, 5_042_002, 5042));
+        deployer.validate("mainnet", treasury);
+
+        vm.chainId(5042);
+        vm.expectRevert(abi.encodeWithSelector(Deploy.WrongNetwork.selector, 5042, 5_042_002));
+        deployer.validate("testnet", treasury);
+    }
+
+    function test_RevertWhen_NetworkUnknownOrEmpty() public {
+        vm.expectRevert(abi.encodeWithSelector(Deploy.UnknownNetwork.selector, ""));
+        deployer.validate("", treasury);
+        vm.expectRevert(abi.encodeWithSelector(Deploy.UnknownNetwork.selector, "Mainnet"));
+        deployer.validate("Mainnet", treasury);
     }
 
     /// @dev 003 FR-013: refusal must name the missing parameter, so the operator can act on it.
@@ -34,10 +56,10 @@ contract DeployScriptTest is Test {
         vm.expectRevert(
             abi.encodeWithSelector(Deploy.MissingParameter.selector, "TREASURY_ADDRESS")
         );
-        deployer.validate(address(0));
+        deployer.validate("testnet", address(0));
     }
 
-    /// @dev 003 FR-014b: validate takes exactly one argument. A leftover `ADMIN_ADDRESS`,
+    /// @dev 003 FR-014b: validate takes only the network and the treasury. A leftover `ADMIN_ADDRESS`,
     ///      `PAUSER_ADDRESS`, or `MIN_TOPUP_WEI` in the operator's environment is never read, so
     ///      it cannot reach the deployed contract (US3 scenario 2). This test states that
     ///      structurally: the deployed router's surface has no field any of them could occupy,

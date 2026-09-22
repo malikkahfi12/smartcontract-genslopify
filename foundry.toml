@@ -18,7 +18,8 @@ solc_version = "0.8.28"
 #   TSTORE/TLOAD (0x5d/0x5c)    -> supported
 #   MCOPY (0x5e, Cancun)        -> supported
 #   negative control (0x0c)     -> "OpcodeNotFound", so the probe discriminates
-# Arc MAINNET support is NOT established by this. Re-probe before any mainnet build.
+# VERIFIED 2026-09-22 against Arc MAINNET (chain 5042, rpc.mainnet.arc.io) by the same probe:
+#   PUSH0, TSTORE/TLOAD, MCOPY -> supported; 0x0c -> "OpcodeNotFound".
 evm_version = "cancun"
 
 optimizer = true
@@ -85,10 +86,12 @@ invariant = { runs = 1_000, depth = 100 }
 
 [rpc_endpoints]
 arc_testnet = "${ARC_TESTNET_RPC}"
+arc_mainnet = "${ARC_MAINNET_RPC}"
 
-# Arc's explorer (testnet.arcscan.app) is BLOCKSCOUT, not Etherscan. It needs no API key, and
+# Arc's explorers (explorer.testnet.arc.io, explorer.arc.io) are BLOCKSCOUT, not Etherscan. It needs no API key, and
 # verification requires passing `--verifier blockscout` explicitly — without it forge falls back
 # to Sourcify, which does not index Arc and returns 404. This block only supplies the URL for
-# `--chain arc_testnet`; the key is unused and may be empty. See docs/DEPLOYMENT.md.
+# `--chain arc_testnet` / `--chain arc_mainnet`; the key is unused and may be empty. See docs/DEPLOYMENT.md.
 [etherscan]
-arc_testnet = { key = "${ARC_EXPLORER_KEY}", url = "https://testnet.arcscan.app/api", chain = 5042002 }
+arc_testnet = { key = "${ARC_EXPLORER_KEY}", url = "https://explorer.testnet.arc.io/api", chain = 5042002 }
+arc_mainnet = { key = "${ARC_EXPLORER_KEY}", url = "https://explorer.arc.io/api", chain = 5042 }
